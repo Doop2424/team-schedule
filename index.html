@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>팀 일정표</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+  :root{
+    --sans:'Pretendard Variable',Pretendard,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    --r:4px;
+  }
+  body[data-theme="light"]{
+    --ink:#1A2432; --ink2:#57687C; --ink3:#8C9AAA;
+    --paper:#FFFFFF; --shell:#EDF0F5; --shell2:#DDE3EB;
+    --rule:#CBD4DE; --rule2:#E4E9EF; --soft:#F7F9FC;
+    --blue:#1D4E89; --tick:#B3272D; --ok:#1F7A5C; --amber:#9A6B12; --purple:#6B3F8C;
+    --barbg:#1A2432; --bartx:#EDF1F6; --barmut:#8FA3B8; --barbd:#3B4A5C; --barhv:#26313F;
+    --daterow:#E8F1DC; --sun:#FCE4F8; --sat:#DCEEF7; --hol:#F6D5F3; --todaybg:#FFF4CC;
+  }
+  body[data-theme="dark"]{
+    --ink:#E4EAF2; --ink2:#9FADBE; --ink3:#75859A;
+    --paper:#1B222C; --shell:#0F141A; --shell2:#28313D;
+    --rule:#3A4553; --rule2:#2B3441; --soft:#202834;
+    --blue:#6FA8E8; --tick:#E4736F; --ok:#5FC29A; --amber:#D6A94E; --purple:#B48BD6;
+    --barbg:#0A0E13; --bartx:#E4EAF2; --barmut:#7A8A9D; --barbd:#333E4C; --barhv:#1C242F;
+    --daterow:#243024; --sun:#3A2537; --sat:#213240; --hol:#4A2C47; --todaybg:#4A3F1E;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--shell);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}
+  button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+  .hide{display:none !important}
+
+  header{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+         padding:8px 18px;background:var(--barbg);color:var(--bartx);border-bottom:3px solid var(--tick)}
+  header h1{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
+  header h1 a{color:var(--barmut);text-decoration:none;font-weight:400;font-size:12px;margin-right:8px}
+  header h1 a:hover{color:var(--bartx)}
+  header .sp{flex:1}
+  header .sync{font-size:11px;color:var(--barmut)}
+  header .who{font-size:12px;color:var(--barmut)}
+  .btn{border:1px solid var(--barbd);background:transparent;color:var(--bartx);padding:5px 11px;
+       border-radius:var(--r);cursor:pointer;font-size:13px;white-space:nowrap}
+  .btn:hover{background:var(--barhv)}
+  .btn.pri{background:var(--tick);border-color:var(--tick);color:#fff;font-weight:600}
+  .seg{display:flex;border:1px solid var(--barbd);border-radius:var(--r);overflow:hidden}
+  .seg button{border:0;background:transparent;color:var(--barmut);padding:5px 10px;cursor:pointer;font-size:12.5px}
+  .seg button:hover{background:var(--barhv);color:var(--bartx)}
+  .seg button.on{background:var(--bartx);color:var(--barbg);font-weight:600}
+  header select{background:var(--barhv);color:var(--bartx);border:1px solid var(--barbd);border-radius:var(--r);padding:5px 6px;font-size:12.5px}
+
+  main{padding:14px 18px 80px;max-width:1700px;margin:0 auto}
+
+  #login{max-width:380px;margin:60px auto;background:var(--paper);border:1px solid var(--rule2);border-radius:var(--r);padding:26px}
+  #login h2{margin:0 0 4px;font-size:20px}
+  #login .hint{margin:0 0 18px;font-size:13px;color:var(--ink3)}
+  #login label{display:block;font-size:12px;color:var(--ink3);margin:12px 0 4px}
+  #login input{width:100%;border:1px solid var(--rule2);border-radius:var(--r);padding:8px 10px;background:var(--soft)}
+  #login .row{display:flex;gap:8px;margin-top:18px}
+  #login .row button{flex:1;background:var(--blue);border:1px solid var(--blue);color:#fff;border-radius:var(--r);padding:8px;cursor:pointer;font-weight:600}
+  #login .msg{margin-top:12px;font-size:13px;color:var(--tick);min-height:20px}
+
+  /* 툴바 */
+  .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--paper);border:1px solid var(--rule2);
+       border-radius:var(--r);padding:8px 12px;margin-bottom:12px}
+  .bar .lab{font-size:12px;color:var(--ink3)}
+  .bar .sp{flex:1}
+  .ebtn{border:1px solid var(--rule);background:transparent;color:var(--ink2);padding:4px 10px;border-radius:var(--r);cursor:pointer;font-size:13px}
+  .ebtn:hover{background:var(--soft);color:var(--ink)}
+  .ebtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .bar select,.bar input{border:1px solid var(--rule);border-radius:var(--r);padding:4px 8px;background:var(--soft);font-size:13px}
+  .range{font-weight:600;font-size:14px;min-width:230px;text-align:center}
+
+  /* 필터 칩 */
+  .chips{display:flex;gap:5px;flex-wrap:wrap}
+  .chip{border:1px solid var(--rule);border-radius:12px;padding:2px 10px;font-size:12px;cursor:pointer;background:var(--soft);color:var(--ink2)}
+  .chip:hover{border-color:var(--ink3)}
+  .chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .chip.me{border-style:dashed}
+
+  /* 범례 */
+  .legend{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .lg{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 9px;border-radius:var(--r);cursor:pointer;
+      border:1px solid transparent;font-weight:600}
+  .lg small{font-weight:400;opacity:.8}
+  .lg.dim{opacity:.25}
+  .lg.pick{outline:2px solid var(--ink);outline-offset:1px}
+
+  /* 표 */
+  .wrap{background:var(--paper);border:1px solid var(--rule2);border-radius:var(--r);overflow:auto;user-select:none}
+  table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:12.5px}
+  th,td{border:1px solid var(--rule2);padding:0;height:26px;text-align:center;vertical-align:middle;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  th{font-weight:600}
+  th.name,td.name{width:74px;text-align:left;padding:0 8px;background:var(--paper);position:sticky;left:0;z-index:2;font-weight:600;cursor:pointer}
+  td.name:hover{color:var(--blue)}
+  td.name.me{color:var(--blue)}
+  td.name.off{color:var(--ink3);font-weight:400}
+  th.dh{background:var(--daterow);font-weight:600;color:var(--ink)}
+  th.dh.sun{background:var(--sun)} th.dh.sat{background:var(--sat)}
+  th.dh.today{box-shadow:inset 0 -3px 0 var(--tick)}
+  th.dh small{display:block;font-size:10px;font-weight:400;color:var(--ink3);line-height:1}
+  th.memo,td.memo{width:150px;text-align:left;padding:0 8px;white-space:normal;font-size:11.5px;color:var(--ink2);line-height:1.3;cursor:pointer}
+  td.memo:hover{background:var(--soft)}
+  td.d{cursor:cell;font-weight:600;padding:0 4px}
+  td.d.we{background:var(--soft)}
+  td.d.today{box-shadow:inset 0 0 0 1px var(--tick)}
+  td.d:hover{outline:2px solid var(--blue);outline-offset:-2px}
+  td.d.sel{outline:2px solid var(--tick);outline-offset:-2px;filter:brightness(1.08)}
+  td.d.dim{opacity:.18}
+  td.hol{background:var(--hol);color:var(--ink);font-weight:700;letter-spacing:.2em;writing-mode:vertical-rl;text-orientation:upright}
+  tr.off td.d{opacity:.28}
+  tr.hidden{display:none}
+  .blk-gap td{height:6px;background:var(--shell);border-left:0;border-right:0}
+  .tl th.dh{width:auto;font-size:11px;padding:0 1px}
+  .tl th.dh span{display:block;font-size:12.5px}
+  .tl td.d{font-size:11.5px;font-weight:600}
+  .tl td.d.run{border-left:2px solid var(--paper);border-right:2px solid var(--paper)}
+  .empty{padding:40px;text-align:center;color:var(--ink3)}
+
+  /* 편집 팝업 */
+  .pop{position:fixed;z-index:80;background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);
+       box-shadow:0 8px 28px rgba(0,0,0,.18);padding:12px 14px;width:320px;font-size:13px}
+  .pop .hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .pop .hd b{font-size:14px}
+  .pop .hd span{color:var(--ink3);font-size:12px}
+  .pop input[type=text],.pop textarea{width:100%;border:1px solid var(--rule);border-radius:var(--r);padding:7px 9px;background:var(--soft)}
+  .pop textarea{min-height:80px;resize:vertical}
+  .pop .row{display:flex;gap:6px;margin-top:10px;align-items:center}
+  .pop .row .sp{flex:1}
+  .pop .recent{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;max-height:96px;overflow:auto}
+  .pop .recent button{border:0;border-radius:3px;padding:2px 7px;font-size:11.5px;cursor:pointer;font-weight:600}
+  .pop label.ck{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2)}
+  .pop .two{display:flex;gap:4px;align-items:center;margin-bottom:6px}
+  .pop .two input{flex:1;min-width:0}
+  .pop .two select{border:1px solid var(--rule);border-radius:var(--r);background:var(--soft);padding:6px 2px;width:44px;text-align:center}
+  .pop .fin{font-size:11.5px;color:var(--ink3);margin:0 0 3px}
+  .pop .tg{margin-top:10px;border-top:1px solid var(--rule2);padding-top:8px}
+  .pop .tgl{display:flex;flex-wrap:wrap;gap:2px 10px;max-height:84px;overflow:auto}
+  .pop .tgl label{display:flex;align-items:center;gap:3px;font-size:12px;color:var(--ink2);cursor:pointer}
+  .pop .lnk{border:0;background:none;color:var(--blue);cursor:pointer;font-size:11.5px;padding:0 4px}
+  .pop input:disabled,.pop select:disabled{opacity:.45}
+  .ebtn:disabled{opacity:.4;cursor:default}
+  .pop input[type=color]{width:26px;height:26px;border:1px solid var(--rule);border-radius:var(--r);padding:0;background:none;cursor:pointer}
+  .pop .del{color:var(--tick);border-color:color-mix(in srgb,var(--tick) 40%,transparent)}
+  .pri2{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+  .veil{position:fixed;inset:0;z-index:70}
+
+  /* 인원 관리 */
+  .panel{background:var(--paper);border:1px solid var(--rule2);border-radius:var(--r);padding:12px 14px;margin-bottom:12px}
+  .panel h4{margin:0 0 8px;font-size:13.5px}
+  .mrow{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule2);font-size:13px}
+  .mrow:last-child{border-bottom:0}
+  .mrow .nm{flex:1}
+  .mrow button{border:1px solid var(--rule);background:transparent;border-radius:var(--r);padding:1px 7px;cursor:pointer;font-size:12px;color:var(--ink2)}
+  .mrow button:hover{background:var(--soft)}
+  .madd{display:flex;gap:6px;margin-top:8px}
+  .madd input{flex:1;border:1px solid var(--rule);border-radius:var(--r);padding:5px 8px;background:var(--soft)}
+  .note{font-size:12px;color:var(--ink3);margin-top:6px}
+  /* 가져오기 비교 */
+  .irow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0;font-size:13px}
+  .irow .sp{flex:1}
+  .irow input[type=date]{border:1px solid var(--rule);border-radius:var(--r);padding:3px 6px;background:var(--soft);font-size:12.5px}
+  .irow label.ck{display:flex;align-items:center;gap:5px;color:var(--ink2)}
+  .ilist{max-height:360px;overflow:auto;border:1px solid var(--rule2);border-radius:var(--r)}
+  .iweek{border-bottom:1px solid var(--rule2)} .iweek:last-child{border-bottom:0}
+  .iwh{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--soft)}
+  .iwt{border:0;background:none;cursor:pointer;font-size:13px;font-weight:600;padding:0;text-align:left;flex:1}
+  .iwt small{font-weight:400;color:var(--ink3);margin-left:8px}
+  .ibody{padding:2px 10px 6px 30px}
+  .ich{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px;cursor:pointer}
+  .ich .ik{width:30px;font-weight:600} .ich .id{color:var(--ink3);width:92px} .ich b{width:56px}
+  .ich .iv span{padding:0 6px;border-radius:3px;font-weight:600} .ich s{color:var(--ink3)}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;z-index:90;
+         background:var(--barbg);color:var(--bartx);padding:9px 16px;border-radius:var(--r);font-size:13px;transition:.2s;pointer-events:none}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width:800px){ main{padding:10px} .range{min-width:0} th.memo,td.memo{display:none} }
+  @media (prefers-reduced-motion:reduce){ .toast{transition:none} }
+</style>
+</head>
+<body data-theme="light">
+
+<header>
+  <h1><a id="dashLink" href="#">← 대시보드</a>팀 일정표</h1>
+  <span class="sync" id="sync"></span>
+  <span class="sp"></span>
+  <span class="who" id="who"></span>
+  <select id="meSel" class="hide" title="내 이름 — 내 일정을 강조합니다"></select>
+  <div class="seg" id="themeSeg"><button data-t="light" class="on">밝게</button><button data-t="dark">어둡게</button></div>
+  <button class="btn hide" id="bOut">로그아웃</button>
+</header>
+
+<main>
+  <section id="login">
+    <h2>로그인</h2>
+    <p class="hint">대시보드와 같은 이메일·비밀번호를 사용합니다.</p>
+    <label for="em">이메일</label>
+    <input type="email" id="em" autocomplete="username" placeholder="you@example.com">
+    <label for="pw">비밀번호</label>
+    <input type="password" id="pw" autocomplete="current-password" placeholder="6자 이상">
+    <div class="row"><button id="bIn">로그인</button><button id="bUp" style="background:transparent;color:var(--ink2);border-color:var(--rule)">회원가입</button></div>
+    <div class="msg" id="msg"></div>
+  </section>
+
+  <section id="app" class="hide">
+    <div class="bar">
+      <button class="ebtn" id="bPrev" title="이전">◀</button>
+      <button class="ebtn" id="bToday">이번 주</button>
+      <button class="ebtn" id="bNext" title="다음">▶</button>
+      <span class="range" id="range"></span>
+      <select id="weeks" title="표시할 주 수">
+        <option value="1">1주</option><option value="2">2주</option><option value="4" selected>4주</option>
+        <option value="6">6주</option><option value="8">8주</option><option value="13">13주</option>
+      </select>
+      <div class="seg" style="border-color:var(--rule)" id="viewSeg">
+        <button data-v="block" class="on" style="color:var(--ink2)">주간 블록</button>
+        <button data-v="tl" style="color:var(--ink2)">인원별 타임라인</button>
+      </div>
+      <input id="q" placeholder="프로젝트 검색" style="width:140px">
+      <span class="sp"></span>
+      <button class="ebtn" id="bUndo" title="되돌리기 (Ctrl+Z)" disabled>↶ 되돌리기</button>
+      <button class="ebtn" id="bRedo" title="다시 실행 (Ctrl+Y)" disabled>↷</button>
+      <button class="ebtn" id="bMembers">인원 관리</button>
+      <button class="ebtn" id="bImport" title="엑셀(.xlsx) 또는 JSON. 캡쳐는 Claude 채팅에서 JSON으로 바꿔서 올립니다">가져오기</button>
+      <input type="file" id="file" class="hide" accept=".xlsx,.xls,.json">
+      <select id="xrange" title="엑셀로 내려받을 구간">
+        <option value="view">표시 구간</option><option value="all">전체 기간</option>
+      </select>
+      <button class="ebtn on" id="bXlsx">엑셀 내려받기</button>
+    </div>
+
+    <div class="bar" id="filterBar">
+      <span class="lab">인원</span>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="panel hide" id="members"></div>
+    <div class="panel hide" id="import"></div>
+    <div class="legend" id="legend"></div>
+    <div class="wrap" id="wrap"></div>
+    <p class="note">셀을 클릭하거나 가로로 끌어 여러 날을 한 번에 입력합니다. 이름을 클릭하면 그 사람만 봅니다. 범례를 클릭하면 그 프로젝트만 강조합니다. 새 일정표(엑셀 또는 JSON)는 「가져오기」로 올리면 바뀐 부분만 골라 반영할 수 있습니다.</p>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ═══ 설정 ═══════════════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDgYYLiDXVJiqDdtb25AvsdtR1hUxPBV2Y",
+  authDomain: "worklog-4445b.firebaseapp.com",
+  projectId: "worklog-4445b",
+  storageBucket: "worklog-4445b.firebasestorage.app",
+  messagingSenderId: "763693345629",
+  appId: "1:763693345629:web:1d73c1b2e1ed960f7416b4"
+};
+// 팀 전체가 공유하는 문서 하나. Firestore 규칙에서 로그인 사용자의 읽기·쓰기를 허용해야 합니다.
+//   match /config/schedule { allow read, write: if request.auth != null; }
+const DOC_PATH = ['config', 'schedule'];
+// 대시보드 주소 (헤더 왼쪽 링크). 같은 저장소에 두면 './index.html'.
+const DASHBOARD_URL = "https://doop2424.github.io/dashboard/";
+// 회원가입을 허용할 이메일 도메인. 비워두면 누구나 가입 가능. 예: ["@sjacc.co.kr"]
+const SIGNUP_DOMAINS = [];
+/* ═══════════════════════════════════════════════════════ */
+
+const app = initializeApp(FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, '0');
+const WD = ['일','월','화','수','목','금','토'];
+const PAL = ['#1D4E89','#B3272D','#1F7A5C','#9A6B12','#6B3F8C','#0F7B8A','#8A5A2B','#C0504D',
+             '#4F81BD','#9BBB59','#8064A2','#F79646','#2C7A7B','#D2691E','#556B2F','#3F51B5',
+             '#A0522D','#00838F','#6D4C41','#7B1FA2'];
+
+function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2200); }
+function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function setSync(t){ $('#sync').textContent = t; }
+
+/* ── 날짜 ─────────────────────────────────────────────── */
+function dstr(d){ return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+function parse(ds){ const [y,m,d] = ds.split('-').map(Number); return new Date(y, m-1, d); }
+function addDays(ds, n){ const d = parse(ds); d.setDate(d.getDate()+n); return dstr(d); }
+function weekStart(ds){ const d = parse(ds); d.setDate(d.getDate() - d.getDay()); return dstr(d); }
+function dayIdx(ds){ return Math.round(parse(ds).getTime() / 86400000); }
+const today = dstr(new Date());
+
+/* ── 상태 ─────────────────────────────────────────────── */
+let uid = null, email = '';
+let data = {members:[], colors:{}, events:{}, holidays:{}, memos:{}};
+let view = localStorage.getItem('sch.view') || 'block';
+let weeks = Number(localStorage.getItem('sch.weeks') || 4);
+let start = weekStart(today);
+let filterMembers = [];             // 비어 있으면 전체
+let pickProject = null;
+let query = '';
+let me = localStorage.getItem('sch.me') || '';
+let theme = localStorage.getItem('sch.theme') || 'light';
+let sel = null;                     // {member, a, b}  (a,b = 날짜 문자열)
+let unsub = null;
+
+function applyTheme(){
+  document.body.dataset.theme = theme;
+  document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.t === theme));
+  localStorage.setItem('sch.theme', theme);
+}
+$('#themeSeg').onclick = e => { if(e.target.dataset.t){ theme = e.target.dataset.t; applyTheme(); } };
+applyTheme();
+
+/* ── 색상 ─────────────────────────────────────────────── */
+function hash(s){ let h = 0; for(const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); }
+function colorOf(p){
+  if(data.colors[p]) return data.colors[p];
+  const co = splitProject(p).company;                        // 같은 회사의 다른 업무가 있으면 그 색을 따른다
+  const sib = Object.keys(data.colors).find(k => k !== p && splitProject(k).company === co);
+  if(sib) return data.colors[sib];
+  const used = new Set(Object.values(data.colors));
+  const free = PAL.filter(c => !used.has(c));
+  const pool = free.length ? free : PAL;
+  return pool[hash(p) % pool.length];
+}
+function fg(hex){
+  const n = parseInt(hex.slice(1), 16);
+  const r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+  return (r*299 + g*587 + b*114) / 1000 > 165 ? '#1A2432' : '#FFFFFF';
+}
+function sty(p){ const c = colorOf(p); return `background:${c};color:${fg(c)}`; }
+
+/* ── 회사명 · 업무 분리 ───────────────────────────────────
+   일정명은 저장 시엔 한 문자열이지만, 입력할 때는 회사명 + 구분자 + 업무로 조합한다.
+   기존 자료는 첫 번째 구분자(_ 공백 -) 기준으로 나눈다.                     */
+const SEPS = ['_', ' ', '-'];
+const TASKS_DEFAULT = ['기말감사','중간감사','반기검토','분기검토','내부회계','1차운영평가','2차운영평가','설계평가','주식평가','기업가치평가','실사','조회서','보고서','미팅','출장','교육','연수','PA'];
+function splitProject(t){
+  t = String(t || '');
+  let best = -1, sep = '';
+  for(const s of SEPS){ const i = t.indexOf(s); if(i > 0 && (best < 0 || i < best)){ best = i; sep = s; } }
+  if(best < 0) return {company:t.trim(), task:'', sep:''};
+  return {company:t.slice(0, best).trim(), task:t.slice(best + sep.length).trim(), sep};
+}
+function catalog(){
+  const co = new Set(), ta = new Set(TASKS_DEFAULT);
+  Object.values(data.events).forEach(row => Object.values(row).forEach(p => { const x = splitProject(p); if(x.company) co.add(x.company); if(x.task) ta.add(x.task); }));
+  return {companies:[...co].sort(), tasks:[...ta]};
+}
+
+/* ── 되돌리기 ────────────────────────────────────────────
+   변경 직전 상태를 쌓아두고 Ctrl+Z 로 되돌린다(이 브라우저 세션 안에서만). */
+const hist = [], redoStack = [];
+function snap(){ hist.push(JSON.stringify(data)); if(hist.length > 50) hist.shift(); redoStack.length = 0; updUndo(); }
+function updUndo(){ $('#bUndo').disabled = !hist.length; $('#bRedo').disabled = !redoStack.length; $('#bUndo').title = hist.length ? `되돌리기 (Ctrl+Z) — ${hist.length}단계` : '되돌릴 변경이 없습니다'; }
+function undo(){ if(!hist.length) return; redoStack.push(JSON.stringify(data)); data = JSON.parse(hist.pop()); save(); render(); updUndo(); toast('되돌렸습니다'); }
+function redo(){ if(!redoStack.length) return; hist.push(JSON.stringify(data)); data = JSON.parse(redoStack.pop()); save(); render(); updUndo(); toast('다시 실행했습니다'); }
+$('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
+document.addEventListener('keydown', e => {
+  if(!uid || e.target.matches('input,textarea,select')) return;
+  const k = e.key.toLowerCase();
+  if((e.ctrlKey || e.metaKey) && k === 'z' && !e.shiftKey){ e.preventDefault(); undo(); }
+  else if((e.ctrlKey || e.metaKey) && (k === 'y' || (k === 'z' && e.shiftKey))){ e.preventDefault(); redo(); }
+});
+
+/* ── 저장 ─────────────────────────────────────────────── */
+let saving = null;
+function save(){
+  if(!uid) return Promise.resolve();
+  setSync('저장 중…');
+  const snap = JSON.parse(JSON.stringify(data));
+  snap.updatedAt = serverTimestamp(); snap.updatedBy = email;
+  saving = setDoc(doc(db, ...DOC_PATH), snap)
+    .then(() => setSync('동기화됨 ✓'))
+    .catch(e => { setSync('저장 실패'); toast('저장 실패: ' + (e.code || e.message) + ' — Firestore 규칙에서 config/schedule 쓰기 권한을 확인하세요.'); });
+  return saving;
+}
+function normalize(d){
+  return {
+    members: Array.isArray(d.members) ? d.members : [],
+    colors: d.colors || {}, events: d.events || {}, holidays: d.holidays || {}, memos: d.memos || {}
+  };
+}
+
+/* ── 렌더 공통 ────────────────────────────────────────── */
+function days(){ const out = []; for(let i = 0; i < weeks*7; i++) out.push(addDays(start, i)); return out; }
+function visibleMembers(){ return filterMembers.length ? data.members.filter(m => filterMembers.includes(m)) : data.members; }
+function evAt(ds, m){ return (data.events[ds] || {})[m] || ''; }
+function matches(p){
+  if(pickProject && p !== pickProject) return false;
+  if(query && !p.toLowerCase().includes(query.toLowerCase())) return false;
+  return true;
+}
+function isSel(m, ds){ return sel && sel.member === m && ds >= sel.a && ds <= sel.b; }
+function dhClass(ds){
+  const w = parse(ds).getDay();
+  return 'dh' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '') + (ds === today ? ' today' : '');
+}
+function cellHtml(m, ds, p, extra = ''){
+  const w = parse(ds).getDay();
+  const cls = ['d', (w === 0 || w === 6) ? 'we' : '', ds === today ? 'today' : '', isSel(m, ds) ? 'sel' : '',
+               p && !matches(p) ? 'dim' : ''].filter(Boolean).join(' ');
+  return `<td class="${cls}" data-m="${esc(m)}" data-a="${ds}" data-b="${ds}" ${p ? `style="${sty(p)}" title="${esc(p)}"` : ''} ${extra}>${esc(p)}</td>`;
+}
+
+function renderRange(){
+  const ds = days();
+  const a = parse(ds[0]), b = parse(ds[ds.length-1]);
+  $('#range').textContent = `${a.getFullYear()}.${pad(a.getMonth()+1)}.${pad(a.getDate())} – ${b.getFullYear()}.${pad(b.getMonth()+1)}.${pad(b.getDate())}`;
+}
+function renderChips(){
+  const all = !filterMembers.length;
+  $('#chips').innerHTML = `<button class="chip${all ? ' on' : ''}" data-m="">전체</button>` +
+    (me ? `<button class="chip me${filterMembers.length === 1 && filterMembers[0] === me ? ' on' : ''}" data-m="${esc(me)}">나 (${esc(me)})</button>` : '') +
+    data.members.map(m => `<button class="chip${filterMembers.includes(m) ? ' on' : ''}" data-m="${esc(m)}">${esc(m)}</button>`).join('');
+}
+function renderLegend(){
+  const cnt = {};
+  days().forEach(ds => visibleMembers().forEach(m => { const p = evAt(ds, m); if(p) cnt[p] = (cnt[p] || 0) + 1; }));
+  const list = Object.entries(cnt).sort((x, y) => y[1] - x[1]);
+  $('#legend').innerHTML = list.map(([p, n]) =>
+    `<span class="lg${pickProject && pickProject !== p ? ' dim' : ''}${pickProject === p ? ' pick' : ''}" style="${sty(p)}" data-p="${esc(p)}">${esc(p)}<small>${n}</small></span>`).join('')
+    || '<span class="note">이 구간에 등록된 일정이 없습니다.</span>';
+}
+function renderGrid(){
+  const ms = visibleMembers();
+  if(!data.members.length){
+    $('#wrap').innerHTML = `<div class="empty">아직 인원이 없습니다.<br>「가져오기」로 엑셀 일정표를 올리거나 「인원 관리」에서 이름을 추가하세요.</div>`;
+    return;
+  }
+  $('#wrap').innerHTML = view === 'block' ? blockTable(ms) : tlTable(ms);
+}
+function blockTable(ms){
+  let html = '<table>';
+  for(let w = 0; w < weeks; w++){
+    const wk = days().slice(w*7, w*7+7);
+    if(w) html += `<tr class="blk-gap"><td colspan="9"></td></tr>`;
+    html += `<tr><th class="name">일자</th>` + wk.map(ds => `<th class="${dhClass(ds)}">${ds}<small>${WD[parse(ds).getDay()]}</small></th>`).join('')
+         + `<th class="memo">메모</th></tr>`;
+    ms.forEach((m, i) => {
+      html += `<tr><td class="name${m === me ? ' me' : ''}" data-m="${esc(m)}">${esc(m)}</td>`;
+      wk.forEach(ds => {
+        const hol = data.holidays[ds];
+        if(hol){
+          if(i === 0) html += `<td class="hol" rowspan="${ms.length}" data-hol="${ds}" title="${esc(hol)} — 클릭해서 해제">${esc(hol)}</td>`;
+          return;
+        }
+        html += cellHtml(m, ds, evAt(ds, m));
+      });
+      if(i === 0) html += `<td class="memo" rowspan="${ms.length}" data-memo="${wk[0]}">${esc(data.memos[wk[0]] || '').replace(/\n/g, '<br>') || '<span style="color:var(--ink3)">＋</span>'}</td>`;
+      html += '</tr>';
+    });
+  }
+  return html + '</table>';
+}
+function tlTable(ms){
+  const ds = days();
+  let html = '<table class="tl"><tr><th class="name">인원</th>';
+  ds.forEach((d, i) => {
+    const dt = parse(d), first = i === 0 || dt.getDate() === 1;
+    html += `<th class="${dhClass(d)}" title="${d}${data.holidays[d] ? ' ' + esc(data.holidays[d]) : ''}"${data.holidays[d] ? ' style="background:var(--hol)"' : ''}>${first ? `<small>${dt.getMonth()+1}월</small>` : `<small>${WD[dt.getDay()]}</small>`}<span>${dt.getDate()}</span></th>`;
+  });
+  html += '</tr>';
+  ms.forEach(m => {
+    html += `<tr><td class="name${m === me ? ' me' : ''}" data-m="${esc(m)}">${esc(m)}</td>`;
+    for(let i = 0; i < ds.length;){
+      const p = evAt(ds[i], m);
+      let j = i;
+      while(j + 1 < ds.length && evAt(ds[j+1], m) === p && p) j++;
+      if(!p){
+        const hol = data.holidays[ds[i]];
+        html += cellHtml(m, ds[i], '', hol ? `style="background:var(--hol)" title="${esc(hol)}"` : '');
+        i++; continue;
+      }
+      const a = ds[i], b = ds[j], span = j - i + 1;
+      const cls = ['d', 'run', a <= today && today <= b ? 'today' : '', (sel && sel.member === m && sel.a <= b && sel.b >= a) ? 'sel' : '', matches(p) ? '' : 'dim'].filter(Boolean).join(' ');
+      html += `<td class="${cls}" colspan="${span}" data-m="${esc(m)}" data-a="${a}" data-b="${b}" style="${sty(p)}" title="${esc(p)} (${a} ~ ${b})">${esc(p)}</td>`;
+      i = j + 1;
+    }
+    html += '</tr>';
+  });
+  return html + '</table>';
+}
+function render(){
+  renderRange(); renderChips(); renderLegend(); renderGrid();
+  document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
+  $('#weeks').value = String(weeks);
+  renderMeSel();
+}
+function renderMeSel(){
+  const s = $('#meSel');
+  s.classList.toggle('hide', !data.members.length);
+  s.innerHTML = `<option value="">내 이름 선택</option>` + data.members.map(m => `<option${m === me ? ' selected' : ''}>${esc(m)}</option>`).join('');
+}
+
+/* ── 네비·필터 ────────────────────────────────────────── */
+$('#bPrev').onclick = () => { start = addDays(start, -7 * Math.max(1, Math.floor(weeks / 2))); render(); };
+$('#bNext').onclick = () => { start = addDays(start, 7 * Math.max(1, Math.floor(weeks / 2))); render(); };
+$('#bToday').onclick = () => { start = weekStart(today); render(); };
+$('#weeks').onchange = e => { weeks = Number(e.target.value); localStorage.setItem('sch.weeks', weeks); render(); };
+$('#viewSeg').onclick = e => { if(e.target.dataset.v){ view = e.target.dataset.v; localStorage.setItem('sch.view', view); render(); } };
+$('#q').oninput = e => { query = e.target.value.trim(); renderLegend(); renderGrid(); };
+$('#meSel').onchange = e => { me = e.target.value; localStorage.setItem('sch.me', me); render(); };
+$('#chips').onclick = e => {
+  const m = e.target.dataset.m; if(m === undefined) return;
+  if(m === '') filterMembers = [];
+  else if(e.shiftKey || e.ctrlKey || e.metaKey){ filterMembers = filterMembers.includes(m) ? filterMembers.filter(x => x !== m) : [...filterMembers, m]; }
+  else filterMembers = (filterMembers.length === 1 && filterMembers[0] === m) ? [] : [m];
+  render();
+};
+$('#legend').onclick = e => {
+  const el = e.target.closest('.lg'); if(!el) return;
+  pickProject = pickProject === el.dataset.p ? null : el.dataset.p;
+  renderLegend(); renderGrid();
+};
+
+/* ── 셀 선택(드래그) ───────────────────────────────────── */
+const wrap = $('#wrap');
+let dragging = false;
+wrap.addEventListener('mousedown', e => {
+  const td = e.target.closest('td.d'); if(!td || e.button !== 0) return;
+  closePop();
+  sel = {member: td.dataset.m, a: td.dataset.a, b: td.dataset.b, a0: td.dataset.a, b0: td.dataset.b};
+  dragging = true; paintSel();
+});
+wrap.addEventListener('mouseover', e => {
+  if(!dragging) return;
+  const td = e.target.closest('td.d'); if(!td || td.dataset.m !== sel.member) return;
+  sel.a = sel.a0 < td.dataset.a ? sel.a0 : td.dataset.a;
+  sel.b = sel.b0 > td.dataset.b ? sel.b0 : td.dataset.b;
+  paintSel();
+});
+document.addEventListener('mouseup', e => {
+  if(!dragging) return;
+  dragging = false;
+  openEditor(e.clientX, e.clientY);
+});
+wrap.addEventListener('click', e => {
+  const nm = e.target.closest('td.name');
+  if(nm){ const m = nm.dataset.m; filterMembers = (filterMembers.length === 1 && filterMembers[0] === m) ? [] : [m]; render(); return; }
+  const hol = e.target.closest('td.hol');
+  if(hol){ if(confirm(`${hol.dataset.hol} ${data.holidays[hol.dataset.hol]} 공휴일 표시를 해제할까요?`)){ snap(); delete data.holidays[hol.dataset.hol]; save(); render(); } return; }
+  const memo = e.target.closest('td.memo');
+  if(memo) openMemo(memo.dataset.memo, e.clientX, e.clientY);
+});
+function paintSel(){
+  wrap.querySelectorAll('td.d').forEach(td => {
+    const on = sel && td.dataset.m === sel.member && td.dataset.a <= sel.b && td.dataset.b >= sel.a;
+    td.classList.toggle('sel', !!on);
+  });
+}
+
+/* ── 편집 팝업 ────────────────────────────────────────── */
+let pop = null, veil = null;
+function closePop(){ pop?.remove(); veil?.remove(); pop = veil = null; sel = null; paintSel(); }
+function place(el, x, y){
+  document.body.appendChild(el);
+  const r = el.getBoundingClientRect();
+  el.style.left = Math.max(8, Math.min(x + 8, innerWidth - r.width - 8)) + 'px';
+  el.style.top = Math.max(8, Math.min(y + 8, innerHeight - r.height - 8)) + 'px';
+}
+function mkVeil(){ veil = document.createElement('div'); veil.className = 'veil'; veil.onmousedown = closePop; document.body.appendChild(veil); }
+function rangeOf(a, b){ const out = []; for(let d = a; d <= b; d = addDays(d, 1)) out.push(d); return out; }
+function recentProjects(){
+  const cnt = {};
+  Object.values(data.events).forEach(row => Object.values(row).forEach(p => cnt[p] = (cnt[p] || 0) + 1));
+  return Object.entries(cnt).sort((x, y) => y[1] - x[1]).slice(0, 24).map(x => x[0]);
+}
+function openEditor(x, y){
+  if(!sel) return;
+  const {member, a, b} = sel;
+  const cur = evAt(a, member);
+  const single = a === b;
+  const sp = splitProject(cur), cat = catalog();
+  const srcVals = rangeOf(a, b).map(d => evAt(d, member));
+  const kinds = [...new Set(srcVals.filter(Boolean))];
+  const mixed = kinds.length > 1;
+  const sep = sp.sep || localStorage.getItem('sch.sep') || '_';
+  mkVeil();
+  pop = document.createElement('div'); pop.className = 'pop';
+  pop.innerHTML = `
+    <div class="hd"><b>${esc(member)}</b><span>${a}${single ? '' : ' ~ ' + b}${single ? ' (' + WD[parse(a).getDay()] + ')' : ' · ' + rangeOf(a, b).length + '일'}${mixed ? ' · 일정 ' + kinds.length + '종' : ''}</span></div>
+    <div class="two">
+      <input type="text" id="pCo" list="coList" placeholder="회사명" value="${esc(sp.company)}" autocomplete="off">
+      <select id="pSep" title="구분자">${SEPS.map(x => `<option value="${x}"${x === sep ? ' selected' : ''}>${x === ' ' ? '␣' : x}</option>`).join('')}</select>
+      <input type="text" id="pTask" list="taskList" placeholder="업무 (기말감사 · 내부회계 …)" value="${esc(sp.task)}" autocomplete="off">
+    </div>
+    <datalist id="coList">${cat.companies.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <datalist id="taskList">${cat.tasks.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <div class="fin">저장될 일정명 (직접 고칠 수 있음)</div>
+    <input type="text" id="pIn" list="pList" placeholder="회사명과 업무를 채우면 자동으로 조합됩니다" value="${esc(cur)}" autocomplete="off">
+    <datalist id="pList">${recentProjects().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    <div class="recent">${recentProjects().slice(0, 14).map(p => `<button type="button" data-p="${esc(p)}" style="${sty(p)}">${esc(p)}</button>`).join('')}</div>
+    <div class="row">
+      <input type="color" id="pColor" value="${cur ? colorOf(cur) : '#1D4E89'}" title="이 프로젝트 색">
+      ${single ? `<label class="ck"><input type="checkbox" id="pHol"> 공휴일(전원)</label>` : ''}
+    </div>
+    <div class="tg">
+      <div class="fin">다른 인원에게도 반영 <button type="button" class="lnk" id="tgAll">전체</button><button type="button" class="lnk" id="tgNone">해제</button></div>
+      <div class="tgl">${data.members.filter(m => m !== member).map(m => `<label><input type="checkbox" data-tg="${esc(m)}">${esc(m)}</label>`).join('')}</div>
+      ${mixed ? `<label class="ck" style="margin-top:6px"><input type="checkbox" id="pAsIs" checked> 이 구간의 일정 ${kinds.length}종을 날짜별 그대로 복사 (끄면 위 일정명 하나로 통일)</label>` : ''}
+    </div>
+    <div class="row">
+      ${cur ? `<button class="ebtn del" id="pDel">삭제</button>` : ''}
+      <span class="sp"></span>
+      <button class="ebtn" id="pCancel">취소</button>
+      <button class="ebtn pri2" id="pSave">저장</button>
+    </div>`;
+  place(pop, x, y);
+  const inp = pop.querySelector('#pIn'), coEl = pop.querySelector('#pCo'), taEl = pop.querySelector('#pTask'), sepEl = pop.querySelector('#pSep');
+  const colorEl = pop.querySelector('#pColor');
+  const compose = () => {                                   // 회사 + 구분자 + 업무 → 일정명
+    const co = coEl.value.trim(), ta = taEl.value.trim();
+    inp.value = co && ta ? co + sepEl.value + ta : (co || ta);
+    if(inp.value) colorEl.value = colorOf(inp.value);
+  };
+  const decompose = () => {                                 // 일정명을 직접 고치면 회사·업무 칸도 맞춘다
+    const x = splitProject(inp.value.trim());
+    coEl.value = x.company; taEl.value = x.task; if(x.sep) sepEl.value = x.sep;
+    if(inp.value.trim()) colorEl.value = colorOf(inp.value.trim());
+  };
+  coEl.oninput = taEl.oninput = sepEl.onchange = compose;
+  pop.querySelector('#tgAll').onclick = () => pop.querySelectorAll('[data-tg]').forEach(x => x.checked = true);
+  pop.querySelector('#tgNone').onclick = () => pop.querySelectorAll('[data-tg]').forEach(x => x.checked = false);
+  const asIsEl = pop.querySelector('#pAsIs');
+  const syncAsIs = () => { const on = !!asIsEl?.checked; [inp, coEl, taEl, sepEl, colorEl].forEach(el => el.disabled = on); };
+  if(asIsEl){ asIsEl.onchange = syncAsIs; syncAsIs(); }
+  inp.oninput = decompose;
+  (cur ? inp : coEl).focus(); if(cur) inp.select();
+  pop.querySelector('.recent').onclick = e => { if(e.target.dataset.p){ inp.value = e.target.dataset.p; decompose(); taEl.focus(); } };
+  pop.querySelector('#pCancel').onclick = closePop;
+  pop.querySelector('#pDel')?.addEventListener('click', () => { snap(); apply(member, a, b, ''); toast('삭제했습니다 — Ctrl+Z 로 되돌릴 수 있습니다'); });
+  pop.querySelector('#pSave').onclick = () => {
+    const v = inp.value.trim();
+    snap(); localStorage.setItem('sch.sep', sepEl.value);
+    const holEl = pop.querySelector('#pHol');
+    if(holEl && holEl.checked){
+      if(!v){ toast('공휴일 이름을 입력하세요 (예: 추석)'); return; }
+      data.holidays[a] = v;
+      rangeOf(a, b).forEach(d => delete data.events[d]);
+      save(); closePop(); render(); return;
+    }
+    const targets = [...pop.querySelectorAll('[data-tg]:checked')].map(x => x.dataset.tg);
+    const asIs = pop.querySelector('#pAsIs')?.checked;
+    if(asIs){                                             // 원본의 날짜별 일정을 그대로 대상에게 복사
+      rangeOf(a, b).forEach((d, i) => targets.forEach(m => apply(m, d, d, srcVals[i], true)));
+      save(); closePop(); render(); toast(`${targets.length}명에게 ${rangeOf(a, b).length}일 일정을 복사했습니다`); return;
+    }
+    if(v && colorEl.value.toLowerCase() !== (data.colors[v] || '').toLowerCase()) data.colors[v] = colorEl.value;
+    [member, ...targets].forEach(m => apply(m, a, b, v, true));
+    save(); closePop(); render();
+    if(targets.length) toast(`${targets.length + 1}명에게 반영했습니다`);
+  };
+  pop.addEventListener('keydown', e => { if(e.key === 'Escape') closePop(); if(e.key === 'Enter' && e.target.matches('#pIn,#pCo,#pTask')) pop.querySelector('#pSave').click(); });
+}
+function apply(m, a, b, v, defer){
+  rangeOf(a, b).forEach(d => {
+    if(v){ (data.events[d] = data.events[d] || {})[m] = v; }
+    else if(data.events[d]){ delete data.events[d][m]; if(!Object.keys(data.events[d]).length) delete data.events[d]; }
+  });
+  if(!defer){ save(); closePop(); render(); }
+}
+function openMemo(wk, x, y){
+  mkVeil();
+  pop = document.createElement('div'); pop.className = 'pop';
+  pop.innerHTML = `<div class="hd"><b>주간 메모</b><span>${wk} 주</span></div>
+    <textarea id="mIn" placeholder="이 주에 관한 메모">${esc(data.memos[wk] || '')}</textarea>
+    <div class="row"><span class="sp"></span><button class="ebtn" id="mCancel">취소</button><button class="ebtn pri2" id="mSave">저장</button></div>`;
+  place(pop, x, y);
+  pop.querySelector('#mIn').focus();
+  pop.querySelector('#mCancel').onclick = closePop;
+  pop.querySelector('#mSave').onclick = () => {
+    const v = pop.querySelector('#mIn').value.trim();
+    snap(); if(v) data.memos[wk] = v; else delete data.memos[wk];
+    save(); closePop(); render();
+  };
+}
+
+/* ── 인원 관리 ────────────────────────────────────────── */
+$('#bMembers').onclick = () => { const p = $('#members'); p.classList.toggle('hide'); if(!p.classList.contains('hide')) renderMembers(); };
+function renderMembers(){
+  const p = $('#members');
+  p.innerHTML = `<h4>인원 관리</h4>` + data.members.map((m, i) => `<div class="mrow">
+      <span class="nm">${esc(m)}</span>
+      <button data-up="${i}" title="위로">↑</button><button data-dn="${i}" title="아래로">↓</button>
+      <button data-rn="${i}">이름 변경</button><button data-rm="${i}" style="color:var(--tick)">삭제</button></div>`).join('')
+    + `<div class="madd"><input id="mNew" placeholder="새 이름"><button class="ebtn" id="mAdd">추가</button></div>
+       <p class="note">삭제하면 그 사람의 일정도 함께 지워집니다. 이름을 바꾸면 일정이 새 이름으로 옮겨집니다.</p>`;
+  p.querySelector('#mAdd').onclick = () => {
+    const v = p.querySelector('#mNew').value.trim(); if(!v) return;
+    if(data.members.includes(v)){ toast('이미 있는 이름입니다'); return; }
+    snap(); data.members.push(v); save(); render(); renderMembers();
+  };
+  p.onclick = e => {
+    const t = e.target; if(t.tagName !== 'BUTTON') return;
+    const before = JSON.stringify(data);
+    const mv = (i, j) => { if(j < 0 || j >= data.members.length) return; [data.members[i], data.members[j]] = [data.members[j], data.members[i]]; };
+    if(t.dataset.up !== undefined) mv(+t.dataset.up, +t.dataset.up - 1);
+    else if(t.dataset.dn !== undefined) mv(+t.dataset.dn, +t.dataset.dn + 1);
+    else if(t.dataset.rm !== undefined){
+      const m = data.members[+t.dataset.rm];
+      if(!confirm(`${m} 님을 목록에서 삭제할까요? 일정도 함께 삭제됩니다.`)) return;
+      data.members.splice(+t.dataset.rm, 1);
+      Object.keys(data.events).forEach(d => { delete data.events[d][m]; if(!Object.keys(data.events[d]).length) delete data.events[d]; });
+      if(me === m){ me = ''; localStorage.removeItem('sch.me'); }
+    }
+    else if(t.dataset.rn !== undefined){
+      const m = data.members[+t.dataset.rn];
+      const v = (prompt('새 이름', m) || '').trim(); if(!v || v === m) return;
+      if(data.members.includes(v)){ toast('이미 있는 이름입니다'); return; }
+      data.members[+t.dataset.rn] = v;
+      Object.values(data.events).forEach(row => { if(row[m] !== undefined){ row[v] = row[m]; delete row[m]; } });
+      if(me === m){ me = v; localStorage.setItem('sch.me', v); }
+    }
+    else return;
+    hist.push(before); if(hist.length > 50) hist.shift(); redoStack.length = 0; updUndo();
+    save(); render(); renderMembers();
+  };
+}
+
+/* ── 가져오기 (엑셀 · JSON) ──────────────────────────
+   어떤 형태로 들어와도 parsed = {members, events, holidays, memos} 로 만든 뒤
+   startImport() 에서 기존 데이터와 비교해 주 단위·건 단위로 골라 반영한다.   */
+$('#bImport').onclick = () => $('#file').click();
+$('#file').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+  try{
+    let parsed;
+    if(/\.json$/i.test(f.name)) parsed = normalize(JSON.parse(await f.text()));
+    else if(/\.(png|jpe?g|webp|gif)$/i.test(f.name)){ toast('캡쳐 이미지는 직접 읽지 못합니다. 캡쳐를 Claude 채팅에 올려 JSON으로 변환한 뒤 그 파일을 가져오세요.'); return; }
+    else parsed = parseWorkbook(XLSX.read(await f.arrayBuffer(), {type:'array', cellDates:true}));
+    startImport(parsed, f.name);
+  }catch(err){ console.error(err); toast('가져오기 실패: ' + err.message); }
+};
+function countEv(ev){ return Object.values(ev).reduce((s, r) => s + Object.keys(r).length, 0); }
+function diffOf(parsed, from, to, blanksDelete){
+  const rows = [];   // {ds, m, before, after, kind}
+  const members = parsed.members.length ? parsed.members : data.members;
+  const dates = new Set([...Object.keys(parsed.events), ...Object.keys(parsed.holidays)]);
+  if(blanksDelete){ // 새 자료에 덮인 날짜 범위 안의 기존 일정은 비교 대상
+    for(let d = from; d <= to; d = addDays(d, 1)) if(data.events[d] || data.holidays[d]) dates.add(d);
+  }
+  [...dates].filter(d => d >= from && d <= to).sort().forEach(ds => {
+    const hb = data.holidays[ds] || '', ha = parsed.holidays[ds] || '';
+    if(hb !== ha && (ha || blanksDelete)) rows.push({ds, m:'(공휴일)', before:hb, after:ha, kind: !hb ? 'add' : !ha ? 'del' : 'chg'});
+    members.forEach(m => {
+      const b = (data.events[ds] || {})[m] || '', a = (parsed.events[ds] || {})[m] || '';
+      if(a === b) return;
+      if(!a && !blanksDelete) return;
+      if(ha && !a) return;                 // 새 자료에서 공휴일인 날의 빈칸은 삭제로 보지 않음
+      rows.push({ds, m, before:b, after:a, kind: !b ? 'add' : !a ? 'del' : 'chg'});
+    });
+  });
+  return rows;
+}
+let imp = null;
+function startImport(parsed, label){
+  const ks = [...Object.keys(parsed.events), ...Object.keys(parsed.holidays)].sort();
+  if(!ks.length && !parsed.members.length){ toast('읽어낸 일정이 없습니다.'); return; }
+  const n = countEv(parsed.events);
+  imp = {parsed, label, from: ks[0] || start, to: ks[ks.length-1] || addDays(start, weeks*7-1), blanks:true, checked:new Set(), open:new Set()};
+  // 기본 선택 구간: 자료가 현재 화면과 겹치면 화면 구간, 아니면 자료 전체
+  const vFrom = start, vTo = addDays(start, weeks*7-1);
+  if(imp.from <= vTo && imp.to >= vFrom){ if(imp.from < vFrom) imp.from = vFrom; if(imp.to > vTo) imp.to = vTo; }
+  if(!data.members.length){   // 처음 적재는 비교할 것이 없으니 바로 반영
+    if(confirm(`${label}\n인원 ${parsed.members.length}명, 일정 ${n}건 (${ks[0]} ~ ${ks[ks.length-1]})\n\n전체를 반영할까요?`)){ snap(); data = parsed; save().then(() => { render(); toast(`가져왔습니다 — 일정 ${n}건`); }); }
+    return;
+  }
+  imp.rows = diffOf(parsed, imp.from, imp.to, imp.blanks);
+  imp.rows.forEach((_, i) => imp.checked.add(i));
+  renderImport();
+  $('#import').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function renderImport(){
+  const p = $('#import'); p.classList.remove('hide');
+  if(!imp){ p.classList.add('hide'); p.innerHTML = ''; return; }
+  const {parsed, rows} = imp;
+  const newMembers = parsed.members.filter(m => !data.members.includes(m));
+  const byWeek = {};
+  rows.forEach((r, i) => { const w = weekStart(r.ds); (byWeek[w] = byWeek[w] || []).push(i); });
+  const KIND = {add:['추가','var(--ok)'], chg:['변경','var(--amber)'], del:['삭제','var(--tick)']};
+  const nSel = imp.checked.size;
+  p.innerHTML = `<h4>가져오기 — ${esc(imp.label)} <span class="note" style="font-weight:400">읽은 일정 ${countEv(parsed.events)}건 · 인원 ${parsed.members.length}명</span></h4>
+    <div class="irow">
+      <label>기간 <input type="date" id="iFrom" value="${imp.from}"> ~ <input type="date" id="iTo" value="${imp.to}"></label>
+      <label class="ck"><input type="checkbox" id="iBlank" ${imp.blanks ? 'checked' : ''}> 새 자료에서 빈 칸이면 기존 일정 삭제</label>
+      <span class="sp"></span>
+      <button class="ebtn" id="iAll">모두 선택</button><button class="ebtn" id="iNone">모두 해제</button>
+    </div>
+    ${newMembers.length ? `<div class="note">새 인원: ${newMembers.map(esc).join(', ')} — 선택한 변경에 포함되면 자동 추가됩니다.</div>` : ''}
+    <div class="ilist">${rows.length ? Object.keys(byWeek).sort().map(w => {
+      const idx = byWeek[w], on = idx.filter(i => imp.checked.has(i)).length, open = imp.open.has(w);
+      const cnt = {add:0, chg:0, del:0}; idx.forEach(i => cnt[rows[i].kind]++);
+      return `<div class="iweek">
+        <div class="iwh"><input type="checkbox" data-w="${w}" ${on === idx.length ? 'checked' : ''} ${on && on < idx.length ? 'data-part="1"' : ''}>
+          <button class="iwt" data-open="${w}">${open ? '▾' : '▸'} ${w} 주 <small>추가 ${cnt.add} · 변경 ${cnt.chg} · 삭제 ${cnt.del}</small></button></div>
+        ${open ? `<div class="ibody">${idx.map(i => { const r = rows[i]; const [k, c] = KIND[r.kind];
+          return `<label class="ich"><input type="checkbox" data-i="${i}" ${imp.checked.has(i) ? 'checked' : ''}>
+            <span class="ik" style="color:${c}">${k}</span><span class="id">${r.ds} (${WD[parse(r.ds).getDay()]})</span><b>${esc(r.m)}</b>
+            <span class="iv">${r.before ? `<s>${esc(r.before)}</s>` : ''}${r.before && r.after ? ' → ' : ''}${r.after ? `<span style="${sty(r.after)}">${esc(r.after)}</span>` : ''}</span></label>`; }).join('')}</div>` : ''}
+      </div>`; }).join('') : '<div class="note">선택한 기간에서 기존 자료와 다른 점이 없습니다.</div>'}</div>
+    <div class="irow">
+      <button class="ebtn" id="iReplace" title="기간·선택과 상관없이 전체 데이터를 이 파일로 바꿉니다">전체 교체</button>
+      <span class="sp"></span>
+      <button class="ebtn" id="iCancel">취소</button>
+      <button class="ebtn pri2" id="iApply" ${nSel ? '' : 'disabled'}>선택 ${nSel}건 반영</button>
+    </div>`;
+  p.querySelectorAll('[data-part]').forEach(el => el.indeterminate = true);
+  const recalc = () => { imp.rows = diffOf(parsed, imp.from, imp.to, imp.blanks); imp.checked = new Set(imp.rows.map((_, i) => i)); renderImport(); };
+  p.querySelector('#iFrom').onchange = e => { if(e.target.value){ imp.from = e.target.value; recalc(); } };
+  p.querySelector('#iTo').onchange = e => { if(e.target.value){ imp.to = e.target.value; recalc(); } };
+  p.querySelector('#iBlank').onchange = e => { imp.blanks = e.target.checked; recalc(); };
+  p.querySelector('#iAll').onclick = () => { imp.checked = new Set(rows.map((_, i) => i)); renderImport(); };
+  p.querySelector('#iNone').onclick = () => { imp.checked = new Set(); renderImport(); };
+  p.querySelector('#iCancel').onclick = () => { imp = null; renderImport(); };
+  p.querySelector('.ilist').onclick = e => {
+    const o = e.target.closest('[data-open]'); if(o){ const w = o.dataset.open; imp.open.has(w) ? imp.open.delete(w) : imp.open.add(w); renderImport(); return; }
+  };
+  p.querySelector('.ilist').onchange = e => {
+    const t = e.target;
+    if(t.dataset.w !== undefined){ byWeek[t.dataset.w].forEach(i => t.checked ? imp.checked.add(i) : imp.checked.delete(i)); renderImport(); }
+    else if(t.dataset.i !== undefined){ const i = +t.dataset.i; t.checked ? imp.checked.add(i) : imp.checked.delete(i); renderImport(); }
+  };
+  p.querySelector('#iReplace').onclick = () => {
+    if(!confirm(`현재 데이터를 모두 「${imp.label}」 내용으로 바꿉니다. 계속할까요?`)) return;
+    snap(); data = parsed; imp = null; save().then(() => { render(); renderImport(); toast('전체를 교체했습니다'); });
+  };
+  p.querySelector('#iApply').onclick = () => {
+    let n = 0; snap();
+    imp.checked.forEach(i => {
+      const r = rows[i]; n++;
+      if(r.m === '(공휴일)'){ if(r.after) data.holidays[r.ds] = r.after; else delete data.holidays[r.ds]; return; }
+      if(!data.members.includes(r.m)) data.members.push(r.m);
+      if(r.after){ (data.events[r.ds] = data.events[r.ds] || {})[r.m] = r.after; }
+      else if(data.events[r.ds]){ delete data.events[r.ds][r.m]; if(!Object.keys(data.events[r.ds]).length) delete data.events[r.ds]; }
+    });
+    Object.entries(parsed.colors || {}).forEach(([k, v]) => { if(!data.colors[k]) data.colors[k] = v; });
+    Object.entries(parsed.memos || {}).forEach(([k, v]) => { if(k >= imp.from && k <= imp.to && !data.memos[k]) data.memos[k] = v; });
+    imp = null; save().then(() => { render(); renderImport(); toast(`${n}건을 반영했습니다`); });
+  };
+}
+
+// 「인별 일정표」 시트 구조: C열 이름, '일자' 행 아래에 인원 행, D~J = 일~토, K = 메모. 여러 시트면 '일자' 행이 가장 많은 시트를 쓴다.
+function parseWorkbook(wb){
+  let best = null, bestN = 0;
+  for(const name of wb.SheetNames){
+    const ws = wb.Sheets[name]; if(!ws || !ws['!ref']) continue;
+    const rg = XLSX.utils.decode_range(ws['!ref']);
+    let n = 0, nameCol = -1;
+    for(let r = rg.s.r; r <= rg.e.r; r++) for(let c = rg.s.c; c <= Math.min(rg.e.c, rg.s.c + 4); c++){
+      const cell = ws[XLSX.utils.encode_cell({r, c})];
+      if(cell && String(cell.v).trim() === '일자'){ n++; nameCol = c; }
+    }
+    if(n > bestN){ bestN = n; best = {ws, nameCol}; }
+  }
+  if(!best) throw new Error('「일자」 행이 있는 시트를 찾지 못했습니다');
+  const {ws, nameCol} = best;
+  const rg = XLSX.utils.decode_range(ws['!ref']);
+  const cellAt = (r, c) => ws[XLSX.utils.encode_cell({r, c})];
+  const dayCols = [1,2,3,4,5,6,7].map(i => nameCol + i), memoCol = nameCol + 8;
+  const rows = [];
+  for(let r = rg.s.r; r <= rg.e.r; r++){ const c = cellAt(r, nameCol); if(c && String(c.v).trim() === '일자') rows.push(r); }
+  // 기준 날짜: 첫 '일자' 행에서 날짜로 읽히는 첫 셀. 이후 블록은 7일씩 더한다(수식 체인이 계산되지 않은 파일도 처리).
+  let anchor = null;
+  for(const r of rows){
+    for(let i = 0; i < 7; i++){
+      const c = cellAt(r, dayCols[i]); if(!c) continue;
+      let d = null;
+      if(c.t === 'd' || c.v instanceof Date) d = new Date(c.v);
+      else if(typeof c.v === 'number' && c.v > 40000) d = new Date(Math.round((c.v - 25569) * 86400000));
+      else if(typeof c.v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(c.v)) d = parse(c.v.slice(0, 10));
+      if(d && !isNaN(d)){ anchor = {row: r, ds: dstr(new Date(d.getFullYear(), d.getMonth(), d.getDate())), i}; break; }
+    }
+    if(anchor) break;
+  }
+  if(!anchor) throw new Error('「일자」 행에서 날짜를 읽지 못했습니다');
+  const ai = rows.indexOf(anchor.row);
+  const week0 = addDays(anchor.ds, -anchor.i - 7 * ai);
+  const merges = {};
+  (ws['!merges'] || []).forEach(m => merges[m.s.r + ':' + m.s.c] = m);
+  const out = {members:[], colors:{}, events:{}, holidays:{}, memos:{}};
+  rows.forEach((r0, bi) => {
+    const wk = addDays(week0, 7 * bi);
+    const end = bi + 1 < rows.length ? rows[bi+1] : rg.e.r + 1;
+    for(let r = r0 + 1; r < end; r++){
+      const nc = cellAt(r, nameCol); if(!nc || typeof nc.v !== 'string' || !nc.v.trim()) continue;
+      const nm = nc.v.trim();
+      if(!out.members.includes(nm)) out.members.push(nm);
+      dayCols.forEach((c, i) => {
+        const ds = addDays(wk, i);
+        const cell = cellAt(r, c); if(!cell || cell.v === undefined || cell.v === null) return;
+        const t = String(cell.v).trim(); if(!t) return;
+        const mg = merges[r + ':' + c];
+        if(mg && mg.e.r - mg.s.r >= 3 && mg.e.c === mg.s.c){ out.holidays[ds] = t; return; }
+        (out.events[ds] = out.events[ds] || {})[nm] = t;
+      });
+      const mc = cellAt(r, memoCol);
+      if(mc && typeof mc.v === 'string' && mc.v.trim()) out.memos[wk] = (out.memos[wk] ? out.memos[wk] + '\n' : '') + `${nm}: ${mc.v.replace(/\r/g, '').trim()}`;
+    }
+  });
+  Object.keys(data.colors || {}).forEach(k => out.colors[k] = data.colors[k]);   // 기존 색상은 유지
+  return out;
+}
+
+/* ── 엑셀 내려받기 (ExcelJS) ──────────────────────────── */
+$('#bXlsx').onclick = async () => {
+  if(!data.members.length){ toast('내려받을 일정이 없습니다'); return; }
+  const mode = $('#xrange').value;
+  let from, to;
+  if(mode === 'view'){ from = start; to = addDays(start, weeks*7 - 1); }
+  else {
+    const ks = [...Object.keys(data.events), ...Object.keys(data.holidays)].sort();
+    if(!ks.length){ toast('등록된 일정이 없습니다'); return; }
+    from = weekStart(ks[0]); to = addDays(weekStart(ks[ks.length-1]), 6);
+  }
+  const wb = new ExcelJS.Workbook();
+  wb.creator = email || 'schedule';
+  const ws = wb.addWorksheet('인별일정표', {views:[{state:'frozen', xSplit:3}]});
+  ws.columns = [{width:2}, {width:2}, {width:9}, ...Array(7).fill({width:22}), {width:28}];
+  const border = {top:{style:'thin', color:{argb:'FFBFBFBF'}}, left:{style:'thin', color:{argb:'FFBFBFBF'}}, bottom:{style:'thin', color:{argb:'FFBFBFBF'}}, right:{style:'thin', color:{argb:'FFBFBFBF'}}};
+  const fill = argb => ({type:'pattern', pattern:'solid', fgColor:{argb}});
+  const font = (o = {}) => ({name:'맑은 고딕', size:10, ...o});
+  const ms = filterMembers.length && mode === 'view' ? visibleMembers() : data.members;
+  let r = 1;
+  ws.getCell(r, 2).value = `${parse(from).getFullYear()}년 인별 일정표 (${from} ~ ${to})`;
+  ws.getCell(r, 2).font = font({bold:true, size:13}); r += 2;
+  const hd = ws.getRow(r); hd.getCell(3).value = '구분';
+  WD.forEach((w, i) => hd.getCell(4 + i).value = w + '요일');
+  hd.getCell(11).value = '메모';
+  for(let c = 3; c <= 11; c++){ const cell = hd.getCell(c); cell.font = font({bold:true}); cell.alignment = {horizontal:'center', vertical:'middle'}; cell.border = border; cell.fill = fill('FFF2F2F2'); }
+  r++;
+  for(let wk = from; wk <= to; wk = addDays(wk, 7)){
+    const dr = ws.getRow(r);
+    dr.getCell(3).value = '일자';
+    for(let i = 0; i < 7; i++){
+      const ds = addDays(wk, i), cell = dr.getCell(4 + i);
+      cell.value = parse(ds); cell.numFmt = 'yyyy-mm-dd';
+      cell.fill = fill(i === 0 ? 'FFFFCCFF' : i === 6 ? 'FFCCECFF' : 'FFEBF1DE');
+    }
+    for(let c = 3; c <= 11; c++){ const cell = dr.getCell(c); cell.font = font({bold:true}); cell.alignment = {horizontal:'center', vertical:'middle'}; cell.border = border; if(c === 3 || c === 11) cell.fill = fill('FFEBF1DE'); }
+    const r0 = r + 1;
+    ms.forEach((m, mi) => {
+      const row = ws.getRow(r0 + mi);
+      row.getCell(3).value = m; row.getCell(3).font = font(); row.getCell(3).border = border; row.getCell(3).alignment = {vertical:'middle'};
+      for(let i = 0; i < 7; i++){
+        const ds = addDays(wk, i), cell = row.getCell(4 + i);
+        cell.border = border; cell.alignment = {horizontal:'center', vertical:'middle', wrapText:true};
+        if(data.holidays[ds]){
+          if(mi === 0){ cell.value = data.holidays[ds]; cell.fill = fill('FFFFCCFF'); cell.font = font({bold:true, size:11}); }
+          continue;
+        }
+        const p = evAt(ds, m);
+        if(p){ const c = colorOf(p); cell.value = p; cell.fill = fill('FF' + c.slice(1).toUpperCase()); cell.font = font({bold:true, color:{argb:'FF' + fg(c).slice(1)}}); }
+        else if(i === 0 || i === 6) cell.fill = fill('FFF7F7F7');
+      }
+      const mc = row.getCell(11); mc.border = border; mc.font = font({size:9}); mc.alignment = {vertical:'top', wrapText:true};
+    });
+    for(let i = 0; i < 7; i++){ const ds = addDays(wk, i); if(data.holidays[ds] && ms.length > 1) ws.mergeCells(r0, 4 + i, r0 + ms.length - 1, 4 + i); }
+    if(ms.length > 1) ws.mergeCells(r0, 11, r0 + ms.length - 1, 11);
+    ws.getCell(r0, 11).value = data.memos[wk] || '';
+    r = r0 + ms.length;
+    ws.getRow(r).height = 6; r++;
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  a.download = `인별일정표_${from.replace(/-/g, '')}_${to.replace(/-/g, '')}.xlsx`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('엑셀 파일을 내려받았습니다');
+};
+
+/* ── 인증 ─────────────────────────────────────────────── */
+$('#bIn').onclick = async () => {
+  $('#msg').textContent = '';
+  try{ await setPersistence(auth, browserLocalPersistence); await signInWithEmailAndPassword(auth, $('#em').value.trim(), $('#pw').value); }
+  catch(e){ $('#msg').textContent = '로그인 실패: ' + e.code; }
+};
+$('#bUp').onclick = async () => {
+  const em = $('#em').value.trim(), pw = $('#pw').value;
+  $('#msg').textContent = '';
+  if(!em || pw.length < 6){ $('#msg').textContent = '이메일과 6자 이상 비밀번호를 입력하세요.'; return; }
+  if(SIGNUP_DOMAINS.length && !SIGNUP_DOMAINS.some(d => em.toLowerCase().endsWith(d.toLowerCase()))){ $('#msg').textContent = `${SIGNUP_DOMAINS.join(', ')} 계정만 가입할 수 있습니다.`; return; }
+  try{ await setPersistence(auth, browserLocalPersistence); await createUserWithEmailAndPassword(auth, em, pw); }
+  catch(e){ $('#msg').textContent = '가입 실패: ' + e.code; }
+};
+$('#dashLink').href = DASHBOARD_URL;
+$('#pw').addEventListener('keydown', e => { if(e.key === 'Enter') $('#bIn').click(); });
+$('#bOut').onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, user => {
+  unsub?.(); unsub = null;
+  if(!user){
+    uid = null; email = '';
+    $('#login').classList.remove('hide'); $('#app').classList.add('hide'); $('#bOut').classList.add('hide');
+    $('#who').textContent = ''; setSync(''); $('#meSel').classList.add('hide');
+    return;
+  }
+  uid = user.uid; email = user.email || '';
+  $('#login').classList.add('hide'); $('#app').classList.remove('hide'); $('#bOut').classList.remove('hide');
+  $('#who').textContent = email; setSync('불러오는 중…');
+  unsub = onSnapshot(doc(db, ...DOC_PATH), snap => {
+    data = normalize(snap.exists() ? snap.data() : {});
+    setSync(snap.metadata.hasPendingWrites ? '저장 중…' : '동기화됨 ✓');
+    if(!pop) render();
+  }, e => { setSync('불러오기 실패'); toast('불러오기 실패: ' + e.code + ' — Firestore 규칙에서 config/schedule 읽기 권한을 확인하세요.'); render(); });
+});
+</script>
+</body>
+</html>
