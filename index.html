@@ -125,6 +125,7 @@
   .rrow select,.madd select{border:1px solid var(--rule);border-radius:var(--r);padding:3px 6px;background:var(--soft)}
   .rrow button{border:1px solid var(--rule);background:transparent;border-radius:var(--r);padding:1px 7px;cursor:pointer;font-size:12px;color:var(--tick)}
   .pop .clip{display:flex;gap:6px;margin-top:8px;align-items:center;font-size:12px;color:var(--ink3)}
+  td.hol.sel{outline:2px solid var(--tick);outline-offset:-2px}
   td.hol{background:var(--hol);color:var(--ink);font-weight:700;letter-spacing:.2em;writing-mode:vertical-rl;text-orientation:upright}
   tr.off td.d{opacity:.28}
   tr.hidden{display:none}
@@ -266,7 +267,7 @@
     <div class="panel hide" id="import"></div>
     <div class="legend" id="legend"></div>
     <div class="wrap" id="wrap"></div>
-    <p class="note">셀을 클릭하거나 가로로 끌어 여러 날을 한 번에 입력합니다. 입력창에서 Ctrl+C 로 선택 구간을 복사하고, 다른 셀을 클릭한 뒤 Ctrl+V 로 붙여넣습니다. 「가안」으로 저장한 일정은 편집 권한자에게만 보입니다. 이름을 클릭하면 그 사람만 봅니다. 범례를 클릭하면 그 프로젝트만 강조합니다. 새 일정표(엑셀 또는 JSON)는 「가져오기」로 올리면 바뀐 부분만 골라 반영할 수 있습니다.</p>
+    <p class="note">셀을 클릭하면 선택, <b>선택된 셀을 다시 클릭</b>(또는 Enter)하면 편집창이 열립니다. 가로·세로로 끌어 여러 명·여러 날을 한 번에 선택할 수 있고, 선택 상태에서 Ctrl+C 복사 · Ctrl+V 붙여넣기 · Delete 삭제 · Esc 해제. 공휴일은 한 번 클릭해 선택하고 다시 클릭하면 해제를 묻습니다. 「가안」으로 저장한 일정은 편집 권한자에게만 보입니다. 이름을 클릭하면 그 사람만 봅니다. 범례를 클릭하면 그 프로젝트만 강조합니다. 새 일정표(엑셀 또는 JSON)는 「가져오기」로 올리면 바뀐 부분만 골라 반영할 수 있습니다.</p>
   </section>
 </main>
 
@@ -334,7 +335,8 @@ let pickProject = null;
 let query = '';
 let me = localStorage.getItem('sch.me') || '';
 let theme = localStorage.getItem('sch.theme') || 'light';
-let sel = null;                     // {member, a, b}  (a,b = 날짜 문자열)
+let sel = null;                     // {ms:[인원…], a, b}  직사각형 선택 (a,b = 날짜 문자열)
+let holSel = null;                  // 선택된 공휴일 날짜 (한 번 더 클릭하면 해제 확인)
 let unsub = null, unsubDraft = null;
 let drafts = {events:{}};                 // 가안
 let roles = {};                           // 이메일 → 권한
@@ -401,7 +403,7 @@ function undo(){ if(!hist.length) return; redoStack.push(stateStr()); restore(hi
 function redo(){ if(!redoStack.length) return; hist.push(stateStr()); restore(redoStack.pop()); save(); render(); updUndo(); toast('다시 실행했습니다'); }
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 document.addEventListener('keydown', e => {
-  if(!uid || e.target.matches('input,textarea,select')) return;
+  if(!uid || pop || (e.target.matches && e.target.matches('input,textarea,select'))) return;
   const k = e.key.toLowerCase();
   if((e.ctrlKey || e.metaKey) && k === 'z' && !e.shiftKey){ e.preventDefault(); undo(); }
   else if((e.ctrlKey || e.metaKey) && (k === 'y' || (k === 'z' && e.shiftKey))){ e.preventDefault(); redo(); }
@@ -443,7 +445,8 @@ function matches(p){
   if(query && !p.toLowerCase().includes(query.toLowerCase())) return false;
   return true;
 }
-function isSel(m, ds){ return sel && sel.member === m && ds >= sel.a && ds <= sel.b; }
+function isSel(m, ds){ return sel && sel.ms.includes(m) && ds >= sel.a && ds <= sel.b; }
+function selMembers(){ return sel ? sel.ms : []; }
 function dhClass(ds){
   const w = parse(ds).getDay();
   return 'dh' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '') + (ds === today ? ' today' : '');
@@ -495,7 +498,7 @@ function blockTable(ms){
       wk.forEach(ds => {
         const hol = data.holidays[ds];
         if(hol){
-          if(i === 0) html += `<td class="hol" rowspan="${ms.length}" data-hol="${ds}" title="${esc(hol)} — 클릭해서 해제">${esc(hol)}</td>`;
+          if(i === 0) html += `<td class="hol${holSel === ds ? ' sel' : ''}" rowspan="${ms.length}" data-hol="${ds}" title="${esc(hol)} — 한 번 더 클릭하면 해제">${esc(hol)}</td>`;
           return;
         }
         html += cellHtml(m, ds, dispAt(ds, m));
@@ -526,7 +529,7 @@ function tlTable(ms){
         i++; continue;
       }
       const a = ds[i], b = ds[j], span = j - i + 1;
-      const cls = ['d', 'run', a <= today && today <= b ? 'today' : '', (sel && sel.member === m && sel.a <= b && sel.b >= a) ? 'sel' : '', matches(p) ? '' : 'dim', dr0 ? 'draft' : ''].filter(Boolean).join(' ');
+      const cls = ['d', 'run', a <= today && today <= b ? 'today' : '', (sel && sel.ms.includes(m) && sel.a <= b && sel.b >= a) ? 'sel' : '', matches(p) ? '' : 'dim', dr0 ? 'draft' : ''].filter(Boolean).join(' ');
       html += `<td class="${cls}" colspan="${span}" data-m="${esc(m)}" data-a="${a}" data-b="${b}" style="${sty(p)}" title="${dr0 ? '가안: ' : ''}${esc(p)} (${a} ~ ${b})">${esc(p)}</td>`;
       i = j + 1;
     }
@@ -599,45 +602,102 @@ $('#legend').onclick = e => {
 
 /* ── 셀 선택(드래그) ───────────────────────────────────── */
 const wrap = $('#wrap');
-let dragging = false;
+let dragging = false, moved = false, clickOnSel = false, anchor = null;
+function rowIdx(m){ return visibleMembers().indexOf(m); }
+function rect(m1, m2, d1, d2){
+  const ms = visibleMembers(), i = rowIdx(m1), j = rowIdx(m2);
+  return {ms: ms.slice(Math.min(i, j), Math.max(i, j) + 1), a: d1 < d2 ? d1 : d2, b: d1 < d2 ? d2 : d1};
+}
+function clearSel(){ sel = null; holSel = null; paintSel(); }
 wrap.addEventListener('mousedown', e => {
   const td = e.target.closest('td.d'); if(!td || e.button !== 0) return;
-  if(!canEdit()){ if(td.title) toast(td.title); return; }
-  closePop();
-  sel = {member: td.dataset.m, a: td.dataset.a, b: td.dataset.b, a0: td.dataset.a, b0: td.dataset.b};
-  dragging = true; paintSel();
+  e.preventDefault();
+  if(pop) closePop();
+  holSel = null;
+  clickOnSel = !!(sel && isSel(td.dataset.m, td.dataset.a));
+  anchor = {m: td.dataset.m, a: td.dataset.a, b: td.dataset.b};
+  if(!clickOnSel){ sel = rect(anchor.m, anchor.m, anchor.a, anchor.b); paintSel(); }
+  dragging = true; moved = false;
 });
 wrap.addEventListener('mouseover', e => {
   if(!dragging) return;
-  const td = e.target.closest('td.d'); if(!td || td.dataset.m !== sel.member) return;
-  sel.a = sel.a0 < td.dataset.a ? sel.a0 : td.dataset.a;
-  sel.b = sel.b0 > td.dataset.b ? sel.b0 : td.dataset.b;
+  const td = e.target.closest('td.d'); if(!td) return;
+  if(td.dataset.m === anchor.m && td.dataset.a === anchor.a && !moved) return;
+  moved = true; clickOnSel = false;
+  sel = rect(anchor.m, td.dataset.m, td.dataset.a < anchor.a ? td.dataset.a : anchor.a, td.dataset.b > anchor.b ? td.dataset.b : anchor.b);
   paintSel();
 });
 document.addEventListener('mouseup', e => {
   if(!dragging) return;
   dragging = false;
-  openEditor(e.clientX, e.clientY);
+  if(clickOnSel && !moved){ if(canEdit()) openEditor(e.clientX, e.clientY); else toast('조회 권한입니다'); }
 });
 wrap.addEventListener('click', e => {
   const nm = e.target.closest('td.name');
-  if(nm){ const m = nm.dataset.m; filterMembers = (filterMembers.length === 1 && filterMembers[0] === m) ? [] : [m]; render(); return; }
-  if(!canEdit()) return;
+  if(nm){ const m = nm.dataset.m; clearSel(); filterMembers = (filterMembers.length === 1 && filterMembers[0] === m) ? [] : [m]; render(); return; }
   const hol = e.target.closest('td.hol');
-  if(hol){ if(confirm(`${hol.dataset.hol} ${data.holidays[hol.dataset.hol]} 공휴일 표시를 해제할까요?`)){ snap(); delete data.holidays[hol.dataset.hol]; save(); render(); } return; }
+  if(hol){
+    if(!canEdit()) return;
+    const ds = hol.dataset.hol;
+    if(holSel === ds){
+      if(confirm(`${ds} ${data.holidays[ds]} 공휴일 표시를 해제할까요?`)){ snap(); delete data.holidays[ds]; save(); }
+      holSel = null; render(); return;
+    }
+    sel = null; holSel = ds; render(); return;
+  }
   const memo = e.target.closest('td.memo');
-  if(memo) openMemo(memo.dataset.memo, e.clientX, e.clientY);
+  if(memo && canEdit()) openMemo(memo.dataset.memo, e.clientX, e.clientY);
 });
 function paintSel(){
   wrap.querySelectorAll('td.d').forEach(td => {
-    const on = sel && td.dataset.m === sel.member && td.dataset.a <= sel.b && td.dataset.b >= sel.a;
+    const on = sel && sel.ms.includes(td.dataset.m) && td.dataset.a <= sel.b && td.dataset.b >= sel.a;
     td.classList.toggle('sel', !!on);
   });
+  wrap.querySelectorAll('td.hol').forEach(td => td.classList.toggle('sel', td.dataset.hol === holSel));
 }
+function selCellRect(){                                  // 선택 영역의 화면 위치 (팝업 위치용)
+  const tds = [...wrap.querySelectorAll('td.d.sel')]; if(!tds.length) return {x: innerWidth/2, y: innerHeight/2};
+  const r = tds[0].getBoundingClientRect(); return {x: r.left, y: r.bottom};
+}
+
+/* ── 선택 영역 복사 · 붙여넣기 · 삭제 ─────────────────── */
+function copySel(){
+  if(!sel) return;
+  clip = {rows: sel.ms.map(m => rangeOf(sel.a, sel.b).map(d => ({v: dispAt(d, m), dr: isDraft(d, m)})))};
+  toast(`${sel.ms.length}명 × ${rangeOf(sel.a, sel.b).length}일 복사했습니다 — 붙일 셀을 클릭하고 Ctrl+V`);
+}
+function pasteSel(asDraft){
+  if(!clip || !sel) return;
+  if(!canEdit()){ toast('조회 권한입니다'); return; }
+  const ms = visibleMembers(), i0 = rowIdx(sel.ms[0]);
+  snap(); let n = 0;
+  clip.rows.forEach((row, ri) => {
+    const m = ms[i0 + ri]; if(!m) return;
+    row.forEach((c, ci) => { const d = addDays(sel.a, ci); if(data.holidays[d]) return; setCell(m, d, c.v, asDraft ?? c.dr); n++; });
+  });
+  save(); render(); toast(`${n}칸 붙여넣었습니다`);
+}
+function deleteSel(){
+  if(!sel) return;
+  if(!canEdit()){ toast('조회 권한입니다'); return; }
+  snap(); let n = 0;
+  sel.ms.forEach(m => rangeOf(sel.a, sel.b).forEach(d => { if(dispAt(d, m)){ setCell(m, d, '', false); n++; } }));
+  save(); render(); if(n) toast(`${n}칸 삭제했습니다 — Ctrl+Z 로 되돌릴 수 있습니다`);
+}
+document.addEventListener('keydown', e => {
+  if(!uid || pop || (e.target.matches && e.target.matches('input,textarea,select'))) return;
+  const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
+  if(ctrl && k === 'c' && sel){ e.preventDefault(); copySel(); }
+  else if(ctrl && k === 'v' && sel){ e.preventDefault(); pasteSel(); }
+  else if((k === 'delete' || k === 'backspace') && sel){ e.preventDefault(); deleteSel(); }
+  else if(k === 'enter' && sel){ e.preventDefault(); if(canEdit()){ const r = selCellRect(); openEditor(r.x, r.y); } }
+  else if(k === 'escape'){ clearSel(); }
+});
 
 /* ── 편집 팝업 ────────────────────────────────────────── */
 let pop = null, veil = null;
-function closePop(){ pop?.remove(); veil?.remove(); pop = veil = null; sel = null; paintSel(); }
+function closePop(){ pop?.remove(); veil?.remove(); pop = veil = null; }
+function donePop(){ closePop(); clearSel(); }
 function place(el, x, y){
   document.body.appendChild(el);
   const r = el.getBoundingClientRect();
@@ -653,18 +713,19 @@ function recentProjects(){
 }
 function openEditor(x, y){
   if(!sel) return;
-  const {member, a, b} = sel;
+  const {ms, a, b} = sel, member = ms[0], multi = ms.length > 1;
   const cur = dispAt(a, member), curDraft = isDraft(a, member);
-  const single = a === b;
+  const single = a === b && !multi;
   const sp = splitProject(cur), cat = catalog();
   const srcVals = rangeOf(a, b).map(d => dispAt(d, member));
-  const kinds = [...new Set(srcVals.filter(Boolean))];
-  const mixed = kinds.length > 1;
+  const kinds = [...new Set(ms.flatMap(m => rangeOf(a, b).map(d => dispAt(d, m))).filter(Boolean))];
+  const mixed = kinds.length > 1 && !multi;
+  const hasAny = ms.some(m => rangeOf(a, b).some(d => dispAt(d, m)));
   const sep = sp.sep || localStorage.getItem('sch.sep') || '_';
   mkVeil();
   pop = document.createElement('div'); pop.className = 'pop';
   pop.innerHTML = `
-    <div class="hd"><b>${esc(member)}</b><span>${a}${single ? '' : ' ~ ' + b}${single ? ' (' + WD[parse(a).getDay()] + ')' : ' · ' + rangeOf(a, b).length + '일'}${mixed ? ' · 일정 ' + kinds.length + '종' : ''}</span></div>
+    <div class="hd"><b>${multi ? esc(member) + ' 외 ' + (ms.length - 1) + '명' : esc(member)}</b><span>${a}${a === b ? '' : ' ~ ' + b}${a === b ? ' (' + WD[parse(a).getDay()] + ')' : ' · ' + rangeOf(a, b).length + '일'}${mixed ? ' · 일정 ' + kinds.length + '종' : ''}</span></div>
     <div class="two">
       <input type="text" id="pCo" list="coList" placeholder="회사명" value="${esc(sp.company)}" autocomplete="off">
       <select id="pSep" title="구분자">${SEPS.map(x => `<option value="${x}"${x === sep ? ' selected' : ''}>${x === ' ' ? '␣' : x}</option>`).join('')}</select>
@@ -683,16 +744,17 @@ function openEditor(x, y){
     </div>
     ${curDraft && evAt(a, member) ? `<div class="fin">확정 일정: ${esc(evAt(a, member))} (가안이 그 위에 표시 중)</div>` : ''}
     <div class="clip">
-      <button type="button" class="ebtn" id="pCopy" title="선택 구간 복사 (Ctrl+C)">복사</button>
-      ${clip ? `<button type="button" class="ebtn" id="pPaste" title="Ctrl+V">붙여넣기 (${clip.vals.length}일)</button><span>${esc(clip.vals.filter(Boolean)[0] || '')}${clip.vals.filter(Boolean).length > 1 ? ' 외' : ''}</span>` : '<span>Ctrl+C 로 복사한 구간을 다른 셀에 Ctrl+V</span>'}
+      <button type="button" class="ebtn" id="pCopy" title="선택 영역 복사">복사</button>
+      ${clip ? `<button type="button" class="ebtn" id="pPaste">붙여넣기 (${clip.rows.length}명×${clip.rows[0].length}일)</button>` : ''}
+      <span>표에서 셀을 선택한 뒤 Ctrl+C · Ctrl+V · Delete · Enter(편집)</span>
     </div>
     <div class="tg">
       <div class="fin">다른 인원에게도 반영 <button type="button" class="lnk" id="tgAll">전체</button><button type="button" class="lnk" id="tgNone">해제</button></div>
-      <div class="tgl">${data.members.filter(m => m !== member).map(m => `<label><input type="checkbox" data-tg="${esc(m)}">${esc(m)}</label>`).join('')}</div>
+      <div class="tgl">${data.members.filter(m => !ms.includes(m)).map(m => `<label><input type="checkbox" data-tg="${esc(m)}">${esc(m)}</label>`).join('')}</div>
       ${mixed ? `<label class="ck" style="margin-top:6px"><input type="checkbox" id="pAsIs" checked> 이 구간의 일정 ${kinds.length}종을 날짜별 그대로 복사 (끄면 위 일정명 하나로 통일)</label>` : ''}
     </div>
     <div class="row">
-      ${cur ? `<button class="ebtn del" id="pDel">삭제</button>` : ''}
+      ${hasAny ? `<button class="ebtn del" id="pDel">삭제</button>` : ''}
       <span class="sp"></span>
       <button class="ebtn" id="pCancel">취소</button>
       <button class="ebtn pri2" id="pSave">저장</button>
@@ -720,24 +782,9 @@ function openEditor(x, y){
   (cur ? inp : coEl).focus(); if(cur) inp.select();
   pop.querySelector('.recent').onclick = e => { if(e.target.dataset.p){ inp.value = e.target.dataset.p; decompose(); taEl.focus(); } };
   pop.querySelector('#pCancel').onclick = closePop;
-  pop.querySelector('#pDel')?.addEventListener('click', () => { snap(); apply(member, a, b, ''); toast(curDraft ? '가안을 삭제했습니다 — Ctrl+Z 로 되돌릴 수 있습니다' : '삭제했습니다 — Ctrl+Z 로 되돌릴 수 있습니다'); });
-  const copyCells = () => { clip = {vals: srcVals.slice(), from: a}; toast(`${srcVals.length}일 복사했습니다 — 다른 셀을 클릭하고 Ctrl+V`); closePop(); };
-  const pasteCells = () => {
-    if(!clip) return;
-    snap();
-    const asDraft = pop.querySelector('#pDraft').checked;
-    clip.vals.forEach((v, i) => setCell(member, addDays(a, i), v, asDraft));
-    save(); closePop(); render(); toast(`${clip.vals.length}일 붙여넣었습니다`);
-  };
-  pop.querySelector('#pCopy').onclick = copyCells;
-  pop.querySelector('#pPaste')?.addEventListener('click', pasteCells);
-  pop.addEventListener('keydown', e => {
-    if(!(e.ctrlKey || e.metaKey)) return;
-    const k = e.key.toLowerCase(), t = e.target;
-    const textSel = t.matches('input[type=text],textarea') && t.selectionStart !== t.selectionEnd;
-    if(k === 'c' && !textSel){ e.preventDefault(); copyCells(); }
-    else if(k === 'v' && clip && (!t.matches('input[type=text],textarea') || !t.value.trim())){ e.preventDefault(); pasteCells(); }
-  });
+  pop.querySelector('#pDel')?.addEventListener('click', () => { closePop(); deleteSel(); clearSel(); });
+  pop.querySelector('#pCopy').onclick = () => { copySel(); closePop(); };
+  pop.querySelector('#pPaste')?.addEventListener('click', () => { const asDraft = pop.querySelector('#pDraft').checked; closePop(); pasteSel(asDraft); clearSel(); });
   pop.querySelector('#pSave').onclick = () => {
     const v = inp.value.trim();
     snap(); localStorage.setItem('sch.sep', sepEl.value);
@@ -747,18 +794,18 @@ function openEditor(x, y){
       if(!v){ toast('공휴일 이름을 입력하세요 (예: 추석)'); return; }
       data.holidays[a] = v;
       rangeOf(a, b).forEach(d => delete data.events[d]);
-      save(); closePop(); render(); return;
+      save(); donePop(); render(); return;
     }
     const targets = [...pop.querySelectorAll('[data-tg]:checked')].map(x => x.dataset.tg);
     const asIs = pop.querySelector('#pAsIs')?.checked;
     if(asIs){                                             // 원본의 날짜별 일정을 그대로 대상에게 복사
       rangeOf(a, b).forEach((d, i) => targets.forEach(m => setCell(m, d, srcVals[i], asDraft)));
-      save(); closePop(); render(); toast(`${targets.length}명에게 ${rangeOf(a, b).length}일 일정을 복사했습니다`); return;
+      save(); donePop(); render(); toast(`${targets.length}명에게 ${rangeOf(a, b).length}일 일정을 복사했습니다`); return;
     }
     if(v && colorEl.value.toLowerCase() !== (data.colors[v] || '').toLowerCase()) data.colors[v] = colorEl.value;
-    [member, ...targets].forEach(m => rangeOf(a, b).forEach(d => setCell(m, d, v, asDraft)));
-    save(); closePop(); render();
-    if(targets.length) toast(`${targets.length + 1}명에게 반영했습니다`); else if(asDraft) toast('가안으로 저장했습니다 (조회 권한자에게는 보이지 않음)');
+    [...ms, ...targets].forEach(m => rangeOf(a, b).forEach(d => setCell(m, d, v, asDraft)));
+    save(); donePop(); render();
+    if(targets.length || multi) toast(`${ms.length + targets.length}명에게 반영했습니다`); else if(asDraft) toast('가안으로 저장했습니다 (조회 권한자에게는 보이지 않음)');
   };
   pop.addEventListener('keydown', e => { if(e.key === 'Escape') closePop(); if(e.key === 'Enter' && e.target.matches('#pIn,#pCo,#pTask')) pop.querySelector('#pSave').click(); });
 }
@@ -771,7 +818,7 @@ function setCell(m, d, v, asDraft){
 }
 function apply(m, a, b, v, defer){
   rangeOf(a, b).forEach(d => setCell(m, d, v, false));
-  if(!defer){ save(); closePop(); render(); }
+  if(!defer){ save(); donePop(); render(); }
 }
 function openMemo(wk, x, y){
   mkVeil();
