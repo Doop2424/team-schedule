@@ -544,7 +544,7 @@ function render(){
   $('#dFrom').value = start; $('#dTo').value = addDays(start, weeks*7 - 1);
   renderMeSel(); renderRole();
   const n = canEdit() ? draftCount() : 0;
-  $('#draftCnt').textContent = n ? `${n}건` : ''; $('#bConfirmDraft').classList.toggle('hide', !n);
+  $('#draftCnt').textContent = n ? `${n}건` : ''; updDraftBtn();
 }
 function renderRole(){
   document.body.classList.toggle('viewer', !canEdit());
@@ -576,13 +576,26 @@ function showMonth(off){
 $('#bMonth').onclick = () => showMonth(0);
 $('#bNextMonth').onclick = () => showMonth(1);
 $('#showDraft').onchange = e => { showDraft = e.target.checked; render(); };
+function draftList(){                                  // 선택 영역이 있으면 그 안의 가안만, 없으면 표시 구간 전체
+  const list = [];
+  if(sel) sel.ms.forEach(m => rangeOf(sel.a, sel.b).forEach(ds => { if(drAt(ds, m)) list.push([ds, m]); }));
+  else days().forEach(ds => visibleMembers().forEach(m => { if(drAt(ds, m)) list.push([ds, m]); }));
+  return list;
+}
+function updDraftBtn(){
+  if(!canEdit()) return;
+  const n = draftList().length, b = $('#bConfirmDraft');
+  b.classList.toggle('hide', !n);
+  b.textContent = sel ? `선택 가안 확정 (${n})` : '가안 확정';
+  b.title = sel ? '선택한 셀 안의 가안만 확정합니다' : '표시 구간의 가안을 모두 확정 일정으로 바꿉니다';
+}
 $('#bConfirmDraft').onclick = () => {
-  const list = []; days().forEach(ds => visibleMembers().forEach(m => { if(drAt(ds, m)) list.push([ds, m]); }));
+  const list = draftList();
   if(!list.length) return;
-  if(!confirm(`표시 구간의 가안 ${list.length}건을 확정 일정으로 바꿉니다. 조회 권한자에게도 보이게 됩니다.`)) return;
+  if(!confirm(`${sel ? '선택 영역의' : '표시 구간의'} 가안 ${list.length}건을 확정 일정으로 바꿉니다. 조회 권한자에게도 보이게 됩니다.`)) return;
   snap();
   list.forEach(([ds, m]) => { setCell(m, ds, drAt(ds, m), false); });
-  save(); render(); toast(`${list.length}건을 확정했습니다`);
+  save(); clearSel(); render(); toast(`${list.length}건을 확정했습니다`);
 };
 $('#viewSeg').onclick = e => { if(e.target.dataset.v){ view = e.target.dataset.v; localStorage.setItem('sch.view', view); render(); } };
 $('#q').oninput = e => { query = e.target.value.trim(); renderLegend(); renderGrid(); };
@@ -654,6 +667,7 @@ function paintSel(){
     td.classList.toggle('sel', !!on);
   });
   wrap.querySelectorAll('td.hol').forEach(td => td.classList.toggle('sel', td.dataset.hol === holSel));
+  updDraftBtn();
 }
 function selCellRect(){                                  // 선택 영역의 화면 위치 (팝업 위치용)
   const tds = [...wrap.querySelectorAll('td.d.sel')]; if(!tds.length) return {x: innerWidth/2, y: innerHeight/2};
@@ -755,6 +769,7 @@ function openEditor(x, y){
     </div>
     <div class="row">
       ${hasAny ? `<button class="ebtn del" id="pDel">삭제</button>` : ''}
+      ${ms.some(m => rangeOf(a, b).some(d => drAt(d, m))) ? `<button class="ebtn" id="pConfirm" title="선택 영역의 가안을 확정으로">가안 확정</button>` : ''}
       <span class="sp"></span>
       <button class="ebtn" id="pCancel">취소</button>
       <button class="ebtn pri2" id="pSave">저장</button>
@@ -784,6 +799,7 @@ function openEditor(x, y){
   pop.querySelector('#pCancel').onclick = closePop;
   pop.querySelector('#pDel')?.addEventListener('click', () => { closePop(); deleteSel(); clearSel(); });
   pop.querySelector('#pCopy').onclick = () => { copySel(); closePop(); };
+  pop.querySelector('#pConfirm')?.addEventListener('click', () => { closePop(); $('#bConfirmDraft').click(); });
   pop.querySelector('#pPaste')?.addEventListener('click', () => { const asDraft = pop.querySelector('#pDraft').checked; closePop(); pasteSel(asDraft); clearSel(); });
   pop.querySelector('#pSave').onclick = () => {
     const v = inp.value.trim();
@@ -813,7 +829,7 @@ function openEditor(x, y){
 function setCell(m, d, v, asDraft){
   const del = (store) => { if(store.events[d]){ delete store.events[d][m]; if(!Object.keys(store.events[d]).length) delete store.events[d]; } };
   if(!v){ if(drAt(d, m)) del(drafts); else del(data); return; }
-  if(asDraft){ (drafts.events[d] = drafts.events[d] || {})[m] = v; }
+  if(asDraft){ (drafts.events[d] = drafts.events[d] || {})[m] = v; if(evAt(d, m) === v) del(data); }   // 같은 내용이면 확정→가안 전환
   else { (data.events[d] = data.events[d] || {})[m] = v; del(drafts); }
 }
 function apply(m, a, b, v, defer){
@@ -913,7 +929,7 @@ $('#file').onchange = async e => {
     let parsed;
     if(/\.json$/i.test(f.name)) parsed = normalize(JSON.parse(await f.text()));
     else if(/\.(png|jpe?g|webp|gif)$/i.test(f.name)){ toast('캡쳐 이미지는 직접 읽지 못합니다. 캡쳐를 Claude 채팅에 올려 JSON으로 변환한 뒤 그 파일을 가져오세요.'); return; }
-    else parsed = parseWorkbook(XLSX.read(await f.arrayBuffer(), {type:'array', cellDates:true}));
+    else parsed = parseWorkbook(XLSX.read(await f.arrayBuffer(), {type:'array', cellDates:false}));
     startImport(parsed, f.name);
   }catch(err){ console.error(err); toast('가져오기 실패: ' + err.message); }
 };
@@ -1050,11 +1066,13 @@ function parseWorkbook(wb){
   for(const r of rows){
     for(let i = 0; i < 7; i++){
       const c = cellAt(r, dayCols[i]); if(!c) continue;
-      let d = null;
-      if(c.t === 'd' || c.v instanceof Date) d = new Date(c.v);
-      else if(typeof c.v === 'number' && c.v > 40000) d = new Date(Math.round((c.v - 25569) * 86400000));
-      else if(typeof c.v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(c.v)) d = parse(c.v.slice(0, 10));
-      if(d && !isNaN(d)){ anchor = {row: r, ds: dstr(new Date(d.getFullYear(), d.getMonth(), d.getDate())), i}; break; }
+      let ds = null;
+      // 시간대 영향을 받지 않도록 엑셀 날짜 시리얼(1900 기준)을 UTC 일수로 직접 환산한다.
+      const fromDays = n => { const t = new Date(Math.round(n) * 86400000); return t.getUTCFullYear() + '-' + pad(t.getUTCMonth()+1) + '-' + pad(t.getUTCDate()); };
+      if(typeof c.v === 'number' && c.v > 40000) ds = fromDays(c.v - 25569);
+      else if(c.v instanceof Date || c.t === 'd'){ const t = new Date(c.v); if(!isNaN(t)) ds = fromDays(t.getTime() / 86400000); }
+      else if(typeof c.v === 'string'){ const mm = c.v.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/); if(mm) ds = `${mm[1]}-${pad(mm[2])}-${pad(mm[3])}`; }
+      if(ds){ anchor = {row: r, ds, i}; break; }
     }
     if(anchor) break;
   }
