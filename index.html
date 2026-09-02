@@ -111,6 +111,20 @@
   td.d:hover{outline:2px solid var(--blue);outline-offset:-2px}
   td.d.sel{outline:2px solid var(--tick);outline-offset:-2px;filter:brightness(1.08)}
   td.d.dim{opacity:.18}
+  td.d.draft{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.38) 0 5px,transparent 5px 11px);outline:2px dashed rgba(0,0,0,.35);outline-offset:-3px;font-style:italic}
+  body[data-theme="dark"] td.d.draft{background-image:repeating-linear-gradient(135deg,rgba(0,0,0,.35) 0 5px,transparent 5px 11px)}
+  .role{font-size:10.5px;padding:1px 7px;border-radius:9px;border:1px solid var(--barbd);color:var(--barmut);margin-left:6px}
+  .role.admin{color:#F6C761;border-color:#7A6220} .role.editor{color:#7FD1A8;border-color:#2C6B4F}
+  body.viewer td.d{cursor:default} body.viewer td.d:hover{outline:none}
+  body.viewer td.memo{cursor:default} body.viewer td.memo:hover{background:transparent}
+  .bar input[type=date]{padding:3px 6px;font-size:12.5px}
+  .draftbar{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink2)}
+  .draftbar .sw{display:inline-block;width:18px;height:12px;background:#6B3F8C;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.38) 0 3px,transparent 3px 6px);border:1px dashed #333;vertical-align:middle}
+  .rrow{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule2);font-size:13px}
+  .rrow:last-child{border-bottom:0} .rrow .em{flex:1;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+  .rrow select,.madd select{border:1px solid var(--rule);border-radius:var(--r);padding:3px 6px;background:var(--soft)}
+  .rrow button{border:1px solid var(--rule);background:transparent;border-radius:var(--r);padding:1px 7px;cursor:pointer;font-size:12px;color:var(--tick)}
+  .pop .clip{display:flex;gap:6px;margin-top:8px;align-items:center;font-size:12px;color:var(--ink3)}
   td.hol{background:var(--hol);color:var(--ink);font-weight:700;letter-spacing:.2em;writing-mode:vertical-rl;text-orientation:upright}
   tr.off td.d{opacity:.28}
   tr.hidden{display:none}
@@ -189,7 +203,7 @@
   <h1><a id="dashLink" href="#">← 대시보드</a>팀 일정표</h1>
   <span class="sync" id="sync"></span>
   <span class="sp"></span>
-  <span class="who" id="who"></span>
+  <span class="who" id="who"></span><span class="role hide" id="roleTag"></span>
   <select id="meSel" class="hide" title="내 이름 — 내 일정을 강조합니다"></select>
   <div class="seg" id="themeSeg"><button data-t="light" class="on">밝게</button><button data-t="dark">어둡게</button></div>
   <button class="btn hide" id="bOut">로그아웃</button>
@@ -212,21 +226,24 @@
       <button class="ebtn" id="bPrev" title="이전">◀</button>
       <button class="ebtn" id="bToday">이번 주</button>
       <button class="ebtn" id="bNext" title="다음">▶</button>
-      <span class="range" id="range"></span>
+      <input type="date" id="dFrom" title="시작일 (그 주 일요일부터 표시)"> ~ <input type="date" id="dTo" title="종료일">
       <select id="weeks" title="표시할 주 수">
         <option value="1">1주</option><option value="2">2주</option><option value="4" selected>4주</option>
-        <option value="6">6주</option><option value="8">8주</option><option value="13">13주</option>
+        <option value="6">6주</option><option value="8">8주</option><option value="13">13주</option><option value="26">26주</option>
       </select>
+      <button class="ebtn" id="bMonth">이번 달</button><button class="ebtn" id="bNextMonth">다음 달</button>
+      <span class="range hide" id="range"></span>
       <div class="seg" style="border-color:var(--rule)" id="viewSeg">
         <button data-v="block" class="on" style="color:var(--ink2)">주간 블록</button>
         <button data-v="tl" style="color:var(--ink2)">인원별 타임라인</button>
       </div>
       <input id="q" placeholder="프로젝트 검색" style="width:140px">
       <span class="sp"></span>
-      <button class="ebtn" id="bUndo" title="되돌리기 (Ctrl+Z)" disabled>↶ 되돌리기</button>
-      <button class="ebtn" id="bRedo" title="다시 실행 (Ctrl+Y)" disabled>↷</button>
-      <button class="ebtn" id="bMembers">인원 관리</button>
-      <button class="ebtn" id="bImport" title="엑셀(.xlsx) 또는 JSON. 캡쳐는 Claude 채팅에서 JSON으로 바꿔서 올립니다">가져오기</button>
+      <button class="ebtn edit-only" id="bUndo" title="되돌리기 (Ctrl+Z)" disabled>↶ 되돌리기</button>
+      <button class="ebtn edit-only" id="bRedo" title="다시 실행 (Ctrl+Y)" disabled>↷</button>
+      <button class="ebtn edit-only" id="bMembers">인원 관리</button>
+      <button class="ebtn admin-only hide" id="bRoles">권한 관리</button>
+      <button class="ebtn edit-only" id="bImport" title="엑셀(.xlsx) 또는 JSON. 캡쳐는 Claude 채팅에서 JSON으로 바꿔서 올립니다">가져오기</button>
       <input type="file" id="file" class="hide" accept=".xlsx,.xls,.json">
       <select id="xrange" title="엑셀로 내려받을 구간">
         <option value="view">표시 구간</option><option value="all">전체 기간</option>
@@ -237,13 +254,19 @@
     <div class="bar" id="filterBar">
       <span class="lab">인원</span>
       <div class="chips" id="chips"></div>
+      <span class="sp"></span>
+      <div class="draftbar edit-only" id="draftBar">
+        <label class="ck" style="display:flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="showDraft" checked> <span class="sw"></span> 가안 표시 <b id="draftCnt"></b></label>
+        <button class="ebtn" id="bConfirmDraft" title="표시 구간의 가안을 모두 확정 일정으로 바꿉니다">가안 확정</button>
+      </div>
     </div>
+    <div class="panel hide" id="roles"></div>
 
     <div class="panel hide" id="members"></div>
     <div class="panel hide" id="import"></div>
     <div class="legend" id="legend"></div>
     <div class="wrap" id="wrap"></div>
-    <p class="note">셀을 클릭하거나 가로로 끌어 여러 날을 한 번에 입력합니다. 이름을 클릭하면 그 사람만 봅니다. 범례를 클릭하면 그 프로젝트만 강조합니다. 새 일정표(엑셀 또는 JSON)는 「가져오기」로 올리면 바뀐 부분만 골라 반영할 수 있습니다.</p>
+    <p class="note">셀을 클릭하거나 가로로 끌어 여러 날을 한 번에 입력합니다. 입력창에서 Ctrl+C 로 선택 구간을 복사하고, 다른 셀을 클릭한 뒤 Ctrl+V 로 붙여넣습니다. 「가안」으로 저장한 일정은 편집 권한자에게만 보입니다. 이름을 클릭하면 그 사람만 봅니다. 범례를 클릭하면 그 프로젝트만 강조합니다. 새 일정표(엑셀 또는 JSON)는 「가져오기」로 올리면 바뀐 부분만 골라 반영할 수 있습니다.</p>
   </section>
 </main>
 
@@ -253,7 +276,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp }
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteField }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ═══ 설정 ═══════════════════════════════════════════════ */
@@ -267,7 +290,11 @@ const FIREBASE_CONFIG = {
 };
 // 팀 전체가 공유하는 문서 하나. Firestore 규칙에서 로그인 사용자의 읽기·쓰기를 허용해야 합니다.
 //   match /config/schedule { allow read, write: if request.auth != null; }
-const DOC_PATH = ['config', 'schedule'];
+const DOC_PATH = ['config', 'schedule'];          // 확정 일정 (모든 로그인 사용자 읽기)
+const DRAFT_PATH = ['config', 'schedule-draft'];  // 가안 (편집 권한자만 읽기·쓰기)
+const ROLES_PATH = ['config', 'roles'];           // { "email": "admin" | "editor" | "viewer" }
+// 항상 관리자인 계정. 권한 문서가 없어도 이 계정은 관리자로 동작한다.
+const ADMIN_EMAILS = ["hong24haha@nate.com", "hong24haha@gmail.com"];
 // 대시보드 주소 (헤더 왼쪽 링크). 같은 저장소에 두면 './index.html'.
 const DASHBOARD_URL = "https://doop2424.github.io/dashboard/";
 // 회원가입을 허용할 이메일 도메인. 비워두면 누구나 가입 가능. 예: ["@sjacc.co.kr"]
@@ -308,7 +335,15 @@ let query = '';
 let me = localStorage.getItem('sch.me') || '';
 let theme = localStorage.getItem('sch.theme') || 'light';
 let sel = null;                     // {member, a, b}  (a,b = 날짜 문자열)
-let unsub = null;
+let unsub = null, unsubDraft = null;
+let drafts = {events:{}};                 // 가안
+let roles = {};                           // 이메일 → 권한
+let role = 'viewer';                      // 내 권한
+let showDraft = true;
+let clip = null;                          // {vals:[...], from}
+const canEdit = () => role !== 'viewer';
+const isAdmin = () => role === 'admin';
+const roleOf = em => ADMIN_EMAILS.some(a => a.toLowerCase() === (em || '').toLowerCase()) ? 'admin' : (roles[(em || '').toLowerCase()] || 'viewer');
 
 function applyTheme(){
   document.body.dataset.theme = theme;
@@ -358,10 +393,12 @@ function catalog(){
 /* ── 되돌리기 ────────────────────────────────────────────
    변경 직전 상태를 쌓아두고 Ctrl+Z 로 되돌린다(이 브라우저 세션 안에서만). */
 const hist = [], redoStack = [];
-function snap(){ hist.push(JSON.stringify(data)); if(hist.length > 50) hist.shift(); redoStack.length = 0; updUndo(); }
+const stateStr = () => JSON.stringify({data, drafts});
+function restore(str){ const o = JSON.parse(str); data = o.data; drafts = o.drafts || {events:{}}; }
+function snap(){ hist.push(stateStr()); if(hist.length > 50) hist.shift(); redoStack.length = 0; updUndo(); }
 function updUndo(){ $('#bUndo').disabled = !hist.length; $('#bRedo').disabled = !redoStack.length; $('#bUndo').title = hist.length ? `되돌리기 (Ctrl+Z) — ${hist.length}단계` : '되돌릴 변경이 없습니다'; }
-function undo(){ if(!hist.length) return; redoStack.push(JSON.stringify(data)); data = JSON.parse(hist.pop()); save(); render(); updUndo(); toast('되돌렸습니다'); }
-function redo(){ if(!redoStack.length) return; hist.push(JSON.stringify(data)); data = JSON.parse(redoStack.pop()); save(); render(); updUndo(); toast('다시 실행했습니다'); }
+function undo(){ if(!hist.length) return; redoStack.push(stateStr()); restore(hist.pop()); save(); render(); updUndo(); toast('되돌렸습니다'); }
+function redo(){ if(!redoStack.length) return; hist.push(stateStr()); restore(redoStack.pop()); save(); render(); updUndo(); toast('다시 실행했습니다'); }
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 document.addEventListener('keydown', e => {
   if(!uid || e.target.matches('input,textarea,select')) return;
@@ -371,15 +408,19 @@ document.addEventListener('keydown', e => {
 });
 
 /* ── 저장 ─────────────────────────────────────────────── */
-let saving = null;
+let saving = null, lastData = '', lastDraft = '';
 function save(){
   if(!uid) return Promise.resolve();
+  if(!canEdit()){ toast('조회 권한입니다. 편집이 필요하면 관리자에게 요청하세요.'); return Promise.resolve(); }
+  const ops = [];
+  const ds = JSON.stringify(data), dr = JSON.stringify(drafts);
+  if(ds !== lastData){ const snap = JSON.parse(ds); snap.updatedAt = serverTimestamp(); snap.updatedBy = email; ops.push(setDoc(doc(db, ...DOC_PATH), snap)); lastData = ds; }
+  if(dr !== lastDraft){ const snap = JSON.parse(dr); snap.updatedAt = serverTimestamp(); snap.updatedBy = email; ops.push(setDoc(doc(db, ...DRAFT_PATH), snap)); lastDraft = dr; }
+  if(!ops.length) return Promise.resolve();
   setSync('저장 중…');
-  const snap = JSON.parse(JSON.stringify(data));
-  snap.updatedAt = serverTimestamp(); snap.updatedBy = email;
-  saving = setDoc(doc(db, ...DOC_PATH), snap)
+  saving = Promise.all(ops)
     .then(() => setSync('동기화됨 ✓'))
-    .catch(e => { setSync('저장 실패'); toast('저장 실패: ' + (e.code || e.message) + ' — Firestore 규칙에서 config/schedule 쓰기 권한을 확인하세요.'); });
+    .catch(e => { setSync('저장 실패'); lastData = lastDraft = ''; toast('저장 실패: ' + (e.code || e.message) + ' — 권한 또는 Firestore 규칙을 확인하세요.'); });
   return saving;
 }
 function normalize(d){
@@ -392,7 +433,11 @@ function normalize(d){
 /* ── 렌더 공통 ────────────────────────────────────────── */
 function days(){ const out = []; for(let i = 0; i < weeks*7; i++) out.push(addDays(start, i)); return out; }
 function visibleMembers(){ return filterMembers.length ? data.members.filter(m => filterMembers.includes(m)) : data.members; }
-function evAt(ds, m){ return (data.events[ds] || {})[m] || ''; }
+function evAt(ds, m){ return (data.events[ds] || {})[m] || ''; }              // 확정 일정
+function drAt(ds, m){ return (drafts.events[ds] || {})[m] || ''; }             // 가안
+function dispAt(ds, m){ return (showDraft && canEdit() && drAt(ds, m)) || evAt(ds, m); }  // 화면에 보이는 값
+function isDraft(ds, m){ return showDraft && canEdit() && !!drAt(ds, m); }
+function draftCount(){ let n = 0; days().forEach(ds => visibleMembers().forEach(m => { if(drAt(ds, m)) n++; })); return n; }
 function matches(p){
   if(pickProject && p !== pickProject) return false;
   if(query && !p.toLowerCase().includes(query.toLowerCase())) return false;
@@ -404,10 +449,11 @@ function dhClass(ds){
   return 'dh' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '') + (ds === today ? ' today' : '');
 }
 function cellHtml(m, ds, p, extra = ''){
-  const w = parse(ds).getDay();
+  const w = parse(ds).getDay(), dr = isDraft(ds, m);
   const cls = ['d', (w === 0 || w === 6) ? 'we' : '', ds === today ? 'today' : '', isSel(m, ds) ? 'sel' : '',
-               p && !matches(p) ? 'dim' : ''].filter(Boolean).join(' ');
-  return `<td class="${cls}" data-m="${esc(m)}" data-a="${ds}" data-b="${ds}" ${p ? `style="${sty(p)}" title="${esc(p)}"` : ''} ${extra}>${esc(p)}</td>`;
+               p && !matches(p) ? 'dim' : '', dr ? 'draft' : ''].filter(Boolean).join(' ');
+  const tt = dr ? `가안: ${p}${evAt(ds, m) ? ' (확정: ' + evAt(ds, m) + ')' : ''}` : p;
+  return `<td class="${cls}" data-m="${esc(m)}" data-a="${ds}" data-b="${ds}" ${p ? `style="${sty(p)}" title="${esc(tt)}"` : ''} ${extra}>${esc(p)}</td>`;
 }
 
 function renderRange(){
@@ -423,7 +469,7 @@ function renderChips(){
 }
 function renderLegend(){
   const cnt = {};
-  days().forEach(ds => visibleMembers().forEach(m => { const p = evAt(ds, m); if(p) cnt[p] = (cnt[p] || 0) + 1; }));
+  days().forEach(ds => visibleMembers().forEach(m => { const p = dispAt(ds, m); if(p) cnt[p] = (cnt[p] || 0) + 1; }));
   const list = Object.entries(cnt).sort((x, y) => y[1] - x[1]);
   $('#legend').innerHTML = list.map(([p, n]) =>
     `<span class="lg${pickProject && pickProject !== p ? ' dim' : ''}${pickProject === p ? ' pick' : ''}" style="${sty(p)}" data-p="${esc(p)}">${esc(p)}<small>${n}</small></span>`).join('')
@@ -452,7 +498,7 @@ function blockTable(ms){
           if(i === 0) html += `<td class="hol" rowspan="${ms.length}" data-hol="${ds}" title="${esc(hol)} — 클릭해서 해제">${esc(hol)}</td>`;
           return;
         }
-        html += cellHtml(m, ds, evAt(ds, m));
+        html += cellHtml(m, ds, dispAt(ds, m));
       });
       if(i === 0) html += `<td class="memo" rowspan="${ms.length}" data-memo="${wk[0]}">${esc(data.memos[wk[0]] || '').replace(/\n/g, '<br>') || '<span style="color:var(--ink3)">＋</span>'}</td>`;
       html += '</tr>';
@@ -471,17 +517,17 @@ function tlTable(ms){
   ms.forEach(m => {
     html += `<tr><td class="name${m === me ? ' me' : ''}" data-m="${esc(m)}">${esc(m)}</td>`;
     for(let i = 0; i < ds.length;){
-      const p = evAt(ds[i], m);
+      const p = dispAt(ds[i], m), dr0 = isDraft(ds[i], m);
       let j = i;
-      while(j + 1 < ds.length && evAt(ds[j+1], m) === p && p) j++;
+      while(j + 1 < ds.length && dispAt(ds[j+1], m) === p && isDraft(ds[j+1], m) === dr0 && p) j++;
       if(!p){
         const hol = data.holidays[ds[i]];
         html += cellHtml(m, ds[i], '', hol ? `style="background:var(--hol)" title="${esc(hol)}"` : '');
         i++; continue;
       }
       const a = ds[i], b = ds[j], span = j - i + 1;
-      const cls = ['d', 'run', a <= today && today <= b ? 'today' : '', (sel && sel.member === m && sel.a <= b && sel.b >= a) ? 'sel' : '', matches(p) ? '' : 'dim'].filter(Boolean).join(' ');
-      html += `<td class="${cls}" colspan="${span}" data-m="${esc(m)}" data-a="${a}" data-b="${b}" style="${sty(p)}" title="${esc(p)} (${a} ~ ${b})">${esc(p)}</td>`;
+      const cls = ['d', 'run', a <= today && today <= b ? 'today' : '', (sel && sel.member === m && sel.a <= b && sel.b >= a) ? 'sel' : '', matches(p) ? '' : 'dim', dr0 ? 'draft' : ''].filter(Boolean).join(' ');
+      html += `<td class="${cls}" colspan="${span}" data-m="${esc(m)}" data-a="${a}" data-b="${b}" style="${sty(p)}" title="${dr0 ? '가안: ' : ''}${esc(p)} (${a} ~ ${b})">${esc(p)}</td>`;
       i = j + 1;
     }
     html += '</tr>';
@@ -492,7 +538,19 @@ function render(){
   renderRange(); renderChips(); renderLegend(); renderGrid();
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   $('#weeks').value = String(weeks);
-  renderMeSel();
+  $('#dFrom').value = start; $('#dTo').value = addDays(start, weeks*7 - 1);
+  renderMeSel(); renderRole();
+  const n = canEdit() ? draftCount() : 0;
+  $('#draftCnt').textContent = n ? `${n}건` : ''; $('#bConfirmDraft').classList.toggle('hide', !n);
+}
+function renderRole(){
+  document.body.classList.toggle('viewer', !canEdit());
+  document.querySelectorAll('.edit-only').forEach(el => el.classList.toggle('hide', !canEdit()));
+  document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hide', !isAdmin()));
+  const t = $('#roleTag'); t.classList.toggle('hide', !uid);
+  t.className = 'role ' + role + (uid ? '' : ' hide');
+  t.textContent = {admin:'관리자', editor:'편집', viewer:'조회'}[role];
+  t.title = {admin:'모든 기능 사용 가능', editor:'일정 편집 · 가안 · 가져오기 가능', viewer:'조회와 엑셀 내려받기만 가능. 편집이 필요하면 관리자에게 요청하세요.'}[role];
 }
 function renderMeSel(){
   const s = $('#meSel');
@@ -505,6 +563,24 @@ $('#bPrev').onclick = () => { start = addDays(start, -7 * Math.max(1, Math.floor
 $('#bNext').onclick = () => { start = addDays(start, 7 * Math.max(1, Math.floor(weeks / 2))); render(); };
 $('#bToday').onclick = () => { start = weekStart(today); render(); };
 $('#weeks').onchange = e => { weeks = Number(e.target.value); localStorage.setItem('sch.weeks', weeks); render(); };
+$('#dFrom').onchange = e => { if(!e.target.value) return; start = weekStart(e.target.value); render(); };
+$('#dTo').onchange = e => { if(!e.target.value) return; const to = e.target.value; if(to < start){ render(); return; } weeks = Math.min(26, Math.max(1, Math.ceil((dayIdx(to) - dayIdx(start) + 1) / 7))); localStorage.setItem('sch.weeks', weeks); render(); };
+function showMonth(off){
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + off);
+  const first = dstr(d), last = dstr(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+  start = weekStart(first); weeks = Math.ceil((dayIdx(last) - dayIdx(start) + 1) / 7); localStorage.setItem('sch.weeks', weeks); render();
+}
+$('#bMonth').onclick = () => showMonth(0);
+$('#bNextMonth').onclick = () => showMonth(1);
+$('#showDraft').onchange = e => { showDraft = e.target.checked; render(); };
+$('#bConfirmDraft').onclick = () => {
+  const list = []; days().forEach(ds => visibleMembers().forEach(m => { if(drAt(ds, m)) list.push([ds, m]); }));
+  if(!list.length) return;
+  if(!confirm(`표시 구간의 가안 ${list.length}건을 확정 일정으로 바꿉니다. 조회 권한자에게도 보이게 됩니다.`)) return;
+  snap();
+  list.forEach(([ds, m]) => { setCell(m, ds, drAt(ds, m), false); });
+  save(); render(); toast(`${list.length}건을 확정했습니다`);
+};
 $('#viewSeg').onclick = e => { if(e.target.dataset.v){ view = e.target.dataset.v; localStorage.setItem('sch.view', view); render(); } };
 $('#q').oninput = e => { query = e.target.value.trim(); renderLegend(); renderGrid(); };
 $('#meSel').onchange = e => { me = e.target.value; localStorage.setItem('sch.me', me); render(); };
@@ -526,6 +602,7 @@ const wrap = $('#wrap');
 let dragging = false;
 wrap.addEventListener('mousedown', e => {
   const td = e.target.closest('td.d'); if(!td || e.button !== 0) return;
+  if(!canEdit()){ if(td.title) toast(td.title); return; }
   closePop();
   sel = {member: td.dataset.m, a: td.dataset.a, b: td.dataset.b, a0: td.dataset.a, b0: td.dataset.b};
   dragging = true; paintSel();
@@ -545,6 +622,7 @@ document.addEventListener('mouseup', e => {
 wrap.addEventListener('click', e => {
   const nm = e.target.closest('td.name');
   if(nm){ const m = nm.dataset.m; filterMembers = (filterMembers.length === 1 && filterMembers[0] === m) ? [] : [m]; render(); return; }
+  if(!canEdit()) return;
   const hol = e.target.closest('td.hol');
   if(hol){ if(confirm(`${hol.dataset.hol} ${data.holidays[hol.dataset.hol]} 공휴일 표시를 해제할까요?`)){ snap(); delete data.holidays[hol.dataset.hol]; save(); render(); } return; }
   const memo = e.target.closest('td.memo');
@@ -576,10 +654,10 @@ function recentProjects(){
 function openEditor(x, y){
   if(!sel) return;
   const {member, a, b} = sel;
-  const cur = evAt(a, member);
+  const cur = dispAt(a, member), curDraft = isDraft(a, member);
   const single = a === b;
   const sp = splitProject(cur), cat = catalog();
-  const srcVals = rangeOf(a, b).map(d => evAt(d, member));
+  const srcVals = rangeOf(a, b).map(d => dispAt(d, member));
   const kinds = [...new Set(srcVals.filter(Boolean))];
   const mixed = kinds.length > 1;
   const sep = sp.sep || localStorage.getItem('sch.sep') || '_';
@@ -601,6 +679,12 @@ function openEditor(x, y){
     <div class="row">
       <input type="color" id="pColor" value="${cur ? colorOf(cur) : '#1D4E89'}" title="이 프로젝트 색">
       ${single ? `<label class="ck"><input type="checkbox" id="pHol"> 공휴일(전원)</label>` : ''}
+      <label class="ck" title="가안은 편집 권한자에게만 보이고, 조회 권한자와 대시보드 위젯에는 나타나지 않습니다"><input type="checkbox" id="pDraft" ${curDraft ? 'checked' : ''}> 가안</label>
+    </div>
+    ${curDraft && evAt(a, member) ? `<div class="fin">확정 일정: ${esc(evAt(a, member))} (가안이 그 위에 표시 중)</div>` : ''}
+    <div class="clip">
+      <button type="button" class="ebtn" id="pCopy" title="선택 구간 복사 (Ctrl+C)">복사</button>
+      ${clip ? `<button type="button" class="ebtn" id="pPaste" title="Ctrl+V">붙여넣기 (${clip.vals.length}일)</button><span>${esc(clip.vals.filter(Boolean)[0] || '')}${clip.vals.filter(Boolean).length > 1 ? ' 외' : ''}</span>` : '<span>Ctrl+C 로 복사한 구간을 다른 셀에 Ctrl+V</span>'}
     </div>
     <div class="tg">
       <div class="fin">다른 인원에게도 반영 <button type="button" class="lnk" id="tgAll">전체</button><button type="button" class="lnk" id="tgNone">해제</button></div>
@@ -636,10 +720,28 @@ function openEditor(x, y){
   (cur ? inp : coEl).focus(); if(cur) inp.select();
   pop.querySelector('.recent').onclick = e => { if(e.target.dataset.p){ inp.value = e.target.dataset.p; decompose(); taEl.focus(); } };
   pop.querySelector('#pCancel').onclick = closePop;
-  pop.querySelector('#pDel')?.addEventListener('click', () => { snap(); apply(member, a, b, ''); toast('삭제했습니다 — Ctrl+Z 로 되돌릴 수 있습니다'); });
+  pop.querySelector('#pDel')?.addEventListener('click', () => { snap(); apply(member, a, b, ''); toast(curDraft ? '가안을 삭제했습니다 — Ctrl+Z 로 되돌릴 수 있습니다' : '삭제했습니다 — Ctrl+Z 로 되돌릴 수 있습니다'); });
+  const copyCells = () => { clip = {vals: srcVals.slice(), from: a}; toast(`${srcVals.length}일 복사했습니다 — 다른 셀을 클릭하고 Ctrl+V`); closePop(); };
+  const pasteCells = () => {
+    if(!clip) return;
+    snap();
+    const asDraft = pop.querySelector('#pDraft').checked;
+    clip.vals.forEach((v, i) => setCell(member, addDays(a, i), v, asDraft));
+    save(); closePop(); render(); toast(`${clip.vals.length}일 붙여넣었습니다`);
+  };
+  pop.querySelector('#pCopy').onclick = copyCells;
+  pop.querySelector('#pPaste')?.addEventListener('click', pasteCells);
+  pop.addEventListener('keydown', e => {
+    if(!(e.ctrlKey || e.metaKey)) return;
+    const k = e.key.toLowerCase(), t = e.target;
+    const textSel = t.matches('input[type=text],textarea') && t.selectionStart !== t.selectionEnd;
+    if(k === 'c' && !textSel){ e.preventDefault(); copyCells(); }
+    else if(k === 'v' && clip && (!t.matches('input[type=text],textarea') || !t.value.trim())){ e.preventDefault(); pasteCells(); }
+  });
   pop.querySelector('#pSave').onclick = () => {
     const v = inp.value.trim();
     snap(); localStorage.setItem('sch.sep', sepEl.value);
+    const asDraft = pop.querySelector('#pDraft').checked;
     const holEl = pop.querySelector('#pHol');
     if(holEl && holEl.checked){
       if(!v){ toast('공휴일 이름을 입력하세요 (예: 추석)'); return; }
@@ -650,21 +752,25 @@ function openEditor(x, y){
     const targets = [...pop.querySelectorAll('[data-tg]:checked')].map(x => x.dataset.tg);
     const asIs = pop.querySelector('#pAsIs')?.checked;
     if(asIs){                                             // 원본의 날짜별 일정을 그대로 대상에게 복사
-      rangeOf(a, b).forEach((d, i) => targets.forEach(m => apply(m, d, d, srcVals[i], true)));
+      rangeOf(a, b).forEach((d, i) => targets.forEach(m => setCell(m, d, srcVals[i], asDraft)));
       save(); closePop(); render(); toast(`${targets.length}명에게 ${rangeOf(a, b).length}일 일정을 복사했습니다`); return;
     }
     if(v && colorEl.value.toLowerCase() !== (data.colors[v] || '').toLowerCase()) data.colors[v] = colorEl.value;
-    [member, ...targets].forEach(m => apply(m, a, b, v, true));
+    [member, ...targets].forEach(m => rangeOf(a, b).forEach(d => setCell(m, d, v, asDraft)));
     save(); closePop(); render();
-    if(targets.length) toast(`${targets.length + 1}명에게 반영했습니다`);
+    if(targets.length) toast(`${targets.length + 1}명에게 반영했습니다`); else if(asDraft) toast('가안으로 저장했습니다 (조회 권한자에게는 보이지 않음)');
   };
   pop.addEventListener('keydown', e => { if(e.key === 'Escape') closePop(); if(e.key === 'Enter' && e.target.matches('#pIn,#pCo,#pTask')) pop.querySelector('#pSave').click(); });
 }
+// 한 셀 기록. v='' 이면 삭제(가안이 있으면 가안만, 없으면 확정). asDraft 면 가안에, 아니면 확정에 쓰고 가안은 지운다.
+function setCell(m, d, v, asDraft){
+  const del = (store) => { if(store.events[d]){ delete store.events[d][m]; if(!Object.keys(store.events[d]).length) delete store.events[d]; } };
+  if(!v){ if(drAt(d, m)) del(drafts); else del(data); return; }
+  if(asDraft){ (drafts.events[d] = drafts.events[d] || {})[m] = v; }
+  else { (data.events[d] = data.events[d] || {})[m] = v; del(drafts); }
+}
 function apply(m, a, b, v, defer){
-  rangeOf(a, b).forEach(d => {
-    if(v){ (data.events[d] = data.events[d] || {})[m] = v; }
-    else if(data.events[d]){ delete data.events[d][m]; if(!Object.keys(data.events[d]).length) delete data.events[d]; }
-  });
+  rangeOf(a, b).forEach(d => setCell(m, d, v, false));
   if(!defer){ save(); closePop(); render(); }
 }
 function openMemo(wk, x, y){
@@ -681,6 +787,31 @@ function openMemo(wk, x, y){
     snap(); if(v) data.memos[wk] = v; else delete data.memos[wk];
     save(); closePop(); render();
   };
+}
+
+/* ── 권한 관리 (관리자) ──────────────────────────────── */
+$('#bRoles').onclick = () => { const p = $('#roles'); p.classList.toggle('hide'); if(!p.classList.contains('hide')) renderRoles(); };
+async function saveRoles(){
+  try{ await setDoc(doc(db, ...ROLES_PATH), {...roles, updatedAt: serverTimestamp(), updatedBy: email}); toast('권한을 저장했습니다'); }
+  catch(e){ toast('권한 저장 실패: ' + (e.code || e.message)); }
+}
+function renderRoles(){
+  const p = $('#roles');
+  const R = {admin:'관리자', editor:'편집', viewer:'조회'};
+  const list = Object.entries(roles).filter(([k]) => !['updatedAt','updatedBy'].includes(k)).sort();
+  p.innerHTML = `<h4>권한 관리</h4>
+    <p class="note" style="margin:0 0 6px">목록에 없는 계정은 <b>조회</b> 권한으로 동작합니다. ${ADMIN_EMAILS.join(', ')} 은 항상 관리자입니다.</p>
+    ${list.map(([em, r]) => `<div class="rrow"><span class="em">${esc(em)}</span>
+      <select data-em="${esc(em)}">${Object.entries(R).map(([k, v]) => `<option value="${k}"${k === r ? ' selected' : ''}>${v}</option>`).join('')}</select>
+      <button data-del="${esc(em)}">삭제</button></div>`).join('') || '<div class="note">등록된 계정이 없습니다.</div>'}
+    <div class="madd"><input id="rEm" type="email" placeholder="이메일"><select id="rRole"><option value="editor">편집</option><option value="viewer">조회</option><option value="admin">관리자</option></select><button class="ebtn" id="rAdd">추가</button></div>
+    <p class="note">편집: 일정 입력·수정·삭제·가안·가져오기. 조회: 보기와 엑셀 내려받기만. 관리자: 전체 + 권한 관리.</p>`;
+  p.querySelector('#rAdd').onclick = () => {
+    const em = p.querySelector('#rEm').value.trim().toLowerCase(); if(!em.includes('@')){ toast('이메일을 입력하세요'); return; }
+    roles[em] = p.querySelector('#rRole').value; saveRoles(); renderRoles();
+  };
+  p.onchange = e => { if(e.target.dataset.em){ roles[e.target.dataset.em] = e.target.value; saveRoles(); } };
+  p.onclick = e => { if(e.target.dataset.del){ if(confirm(`${e.target.dataset.del} 을 목록에서 삭제할까요? (조회 권한으로 바뀝니다)`)){ delete roles[e.target.dataset.del]; saveRoles(); renderRoles(); } } };
 }
 
 /* ── 인원 관리 ────────────────────────────────────────── */
@@ -700,7 +831,7 @@ function renderMembers(){
   };
   p.onclick = e => {
     const t = e.target; if(t.tagName !== 'BUTTON') return;
-    const before = JSON.stringify(data);
+    const before = stateStr();
     const mv = (i, j) => { if(j < 0 || j >= data.members.length) return; [data.members[i], data.members[j]] = [data.members[j], data.members[i]]; };
     if(t.dataset.up !== undefined) mv(+t.dataset.up, +t.dataset.up - 1);
     else if(t.dataset.dn !== undefined) mv(+t.dataset.dn, +t.dataset.dn + 1);
@@ -956,8 +1087,8 @@ $('#bXlsx').onclick = async () => {
           if(mi === 0){ cell.value = data.holidays[ds]; cell.fill = fill('FFFFCCFF'); cell.font = font({bold:true, size:11}); }
           continue;
         }
-        const p = evAt(ds, m);
-        if(p){ const c = colorOf(p); cell.value = p; cell.fill = fill('FF' + c.slice(1).toUpperCase()); cell.font = font({bold:true, color:{argb:'FF' + fg(c).slice(1)}}); }
+        const p = dispAt(ds, m), dr = isDraft(ds, m);
+        if(p){ const c = colorOf(p); cell.value = dr ? p + '(안)' : p; cell.fill = fill('FF' + c.slice(1).toUpperCase()); cell.font = font({bold:true, color:{argb:'FF' + fg(c).slice(1)}}); }
         else if(i === 0 || i === 6) cell.fill = fill('FFF7F7F7');
       }
       const mc = row.getCell(11); mc.border = border; mc.font = font({size:9}); mc.alignment = {vertical:'top', wrapText:true};
@@ -994,22 +1125,33 @@ $('#dashLink').href = DASHBOARD_URL;
 $('#pw').addEventListener('keydown', e => { if(e.key === 'Enter') $('#bIn').click(); });
 $('#bOut').onclick = () => signOut(auth);
 
-onAuthStateChanged(auth, user => {
-  unsub?.(); unsub = null;
+onAuthStateChanged(auth, async user => {
+  unsub?.(); unsub = null; unsubDraft?.(); unsubDraft = null;
   if(!user){
-    uid = null; email = '';
+    uid = null; email = ''; role = 'viewer'; drafts = {events:{}}; hist.length = 0; redoStack.length = 0;
     $('#login').classList.remove('hide'); $('#app').classList.add('hide'); $('#bOut').classList.add('hide');
-    $('#who').textContent = ''; setSync(''); $('#meSel').classList.add('hide');
+    $('#who').textContent = ''; setSync(''); $('#meSel').classList.add('hide'); $('#roleTag').classList.add('hide');
     return;
   }
   uid = user.uid; email = user.email || '';
   $('#login').classList.add('hide'); $('#app').classList.remove('hide'); $('#bOut').classList.remove('hide');
   $('#who').textContent = email; setSync('불러오는 중…');
+  // 권한 문서 → 내 권한 결정
+  try{ const rs = await getDoc(doc(db, ...ROLES_PATH)); roles = rs.exists() ? rs.data() : {}; }
+  catch(e){ roles = {}; if(ADMIN_EMAILS.length === 0 || !ADMIN_EMAILS.some(a => a.toLowerCase() === email.toLowerCase())) toast('권한 정보를 읽지 못해 조회 권한으로 동작합니다 (' + e.code + ')'); }
+  role = roleOf(email);
   unsub = onSnapshot(doc(db, ...DOC_PATH), snap => {
-    data = normalize(snap.exists() ? snap.data() : {});
+    data = normalize(snap.exists() ? snap.data() : {}); lastData = JSON.stringify(data);
     setSync(snap.metadata.hasPendingWrites ? '저장 중…' : '동기화됨 ✓');
     if(!pop) render();
   }, e => { setSync('불러오기 실패'); toast('불러오기 실패: ' + e.code + ' — Firestore 규칙에서 config/schedule 읽기 권한을 확인하세요.'); render(); });
+  if(canEdit()){
+    unsubDraft = onSnapshot(doc(db, ...DRAFT_PATH), snap => {
+      const d = snap.exists() ? snap.data() : {}; drafts = {events: d.events || {}}; lastDraft = JSON.stringify(drafts);
+      if(!pop) render();
+    }, e => { toast('가안을 읽지 못했습니다: ' + e.code + ' — 규칙에서 config/schedule-draft 를 확인하세요.'); });
+  }
+  render();
 });
 </script>
 </body>
