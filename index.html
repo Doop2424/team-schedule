@@ -1137,7 +1137,7 @@ $('#bXlsx').onclick = async () => {
     dr.getCell(3).value = '일자';
     for(let i = 0; i < 7; i++){
       const ds = addDays(wk, i), cell = dr.getCell(4 + i);
-      cell.value = parse(ds); cell.numFmt = 'yyyy-mm-dd';
+      { const [y, mo, d] = ds.split('-').map(Number); cell.value = new Date(Date.UTC(y, mo - 1, d)); } cell.numFmt = 'yyyy-mm-dd';
       cell.fill = fill(i === 0 ? 'FFFFCCFF' : i === 6 ? 'FFCCECFF' : 'FFEBF1DE');
     }
     for(let c = 3; c <= 11; c++){ const cell = dr.getCell(c); cell.font = font({bold:true}); cell.alignment = {horizontal:'center', vertical:'middle'}; cell.border = border; if(c === 3 || c === 11) cell.fill = fill('FFEBF1DE'); }
