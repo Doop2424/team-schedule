@@ -959,7 +959,7 @@ function startImport(parsed, label){
   const ks = [...Object.keys(parsed.events), ...Object.keys(parsed.holidays)].sort();
   if(!ks.length && !parsed.members.length){ toast('읽어낸 일정이 없습니다.'); return; }
   const n = countEv(parsed.events);
-  imp = {parsed, label, from: ks[0] || start, to: ks[ks.length-1] || addDays(start, weeks*7-1), blanks:true, checked:new Set(), open:new Set()};
+  imp = {parsed, label, from: ks[0] || start, to: ks[ks.length-1] || addDays(start, weeks*7-1), blanks:true, draftAn:true, checked:new Set(), open:new Set()};
   // 기본 선택 구간: 자료가 현재 화면과 겹치면 화면 구간, 아니면 자료 전체
   const vFrom = start, vTo = addDays(start, weeks*7-1);
   if(imp.from <= vTo && imp.to >= vFrom){ if(imp.from < vFrom) imp.from = vFrom; if(imp.to > vTo) imp.to = vTo; }
@@ -985,6 +985,7 @@ function renderImport(){
     <div class="irow">
       <label>기간 <input type="date" id="iFrom" value="${imp.from}"> ~ <input type="date" id="iTo" value="${imp.to}"></label>
       <label class="ck"><input type="checkbox" id="iBlank" ${imp.blanks ? 'checked' : ''}> 새 자료에서 빈 칸이면 기존 일정 삭제</label>
+      <label class="ck" title="예: 크레진(안) → 「크레진」 가안으로 저장"><input type="checkbox" id="iDraft" ${imp.draftAn ? 'checked' : ''}> 「(안)」 표기는 가안으로</label>
       <span class="sp"></span>
       <button class="ebtn" id="iAll">모두 선택</button><button class="ebtn" id="iNone">모두 해제</button>
     </div>
@@ -1011,6 +1012,7 @@ function renderImport(){
   p.querySelector('#iFrom').onchange = e => { if(e.target.value){ imp.from = e.target.value; recalc(); } };
   p.querySelector('#iTo').onchange = e => { if(e.target.value){ imp.to = e.target.value; recalc(); } };
   p.querySelector('#iBlank').onchange = e => { imp.blanks = e.target.checked; recalc(); };
+  p.querySelector('#iDraft').onchange = e => { imp.draftAn = e.target.checked; };
   p.querySelector('#iAll').onclick = () => { imp.checked = new Set(rows.map((_, i) => i)); renderImport(); };
   p.querySelector('#iNone').onclick = () => { imp.checked = new Set(); renderImport(); };
   p.querySelector('#iCancel').onclick = () => { imp = null; renderImport(); };
@@ -1023,7 +1025,13 @@ function renderImport(){
     else if(t.dataset.i !== undefined){ const i = +t.dataset.i; t.checked ? imp.checked.add(i) : imp.checked.delete(i); renderImport(); }
   };
   p.querySelector('#iReplace').onclick = () => {
-    if(!confirm(`현재 데이터를 모두 「${imp.label}」 내용으로 바꿉니다. 계속할까요?`)) return;
+    const curN = countEv(data.events), newN = countEv(parsed.events);
+    const curKs = Object.keys(data.events).sort(), newKs = Object.keys(parsed.events).sort();
+    const lost = curKs.filter(d => d < (newKs[0] || '') || d > (newKs[newKs.length-1] || '')).reduce((n, d) => n + Object.keys(data.events[d]).length, 0);
+    let msg = `현재 데이터(일정 ${curN}건, ${curKs[0]} ~ ${curKs[curKs.length-1]})를 모두 지우고\n「${imp.label}」(일정 ${newN}건, ${newKs[0]} ~ ${newKs[newKs.length-1]})로 바꿉니다.`;
+    if(lost) msg += `\n\n⚠ 새 자료 기간 밖의 기존 일정 ${lost}건이 삭제됩니다. 일부 기간만 반영하려면 취소하고 「선택 반영」을 쓰세요.`;
+    msg += '\n\n계속할까요? (Ctrl+Z 로 되돌릴 수 있습니다)';
+    if(!confirm(msg)) return;
     snap(); data = parsed; imp = null; save().then(() => { render(); renderImport(); toast('전체를 교체했습니다'); });
   };
   p.querySelector('#iApply').onclick = () => {
@@ -1032,8 +1040,8 @@ function renderImport(){
       const r = rows[i]; n++;
       if(r.m === '(공휴일)'){ if(r.after) data.holidays[r.ds] = r.after; else delete data.holidays[r.ds]; return; }
       if(!data.members.includes(r.m)) data.members.push(r.m);
-      if(r.after){ (data.events[r.ds] = data.events[r.ds] || {})[r.m] = r.after; }
-      else if(data.events[r.ds]){ delete data.events[r.ds][r.m]; if(!Object.keys(data.events[r.ds]).length) delete data.events[r.ds]; }
+      const an = imp.draftAn && /\(안\)\s*$/.test(r.after || '');
+      setCell(r.m, r.ds, an ? r.after.replace(/\(안\)\s*$/, '').trim() : r.after, an);
     });
     Object.entries(parsed.colors || {}).forEach(([k, v]) => { if(!data.colors[k]) data.colors[k] = v; });
     Object.entries(parsed.memos || {}).forEach(([k, v]) => { if(k >= imp.from && k <= imp.to && !data.memos[k]) data.memos[k] = v; });
